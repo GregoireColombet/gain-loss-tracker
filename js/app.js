@@ -19,6 +19,10 @@ const totalRealizedElement = document.querySelector('#totalRealized');
 const totalUnrealizedElement = document.querySelector('#totalUnrealized');
 const overallGainLossElement = document.querySelector('#overallGainLoss');
 const chartCanvas = document.querySelector('#gainLossChart');
+const gainLossPeriodInputs = document.querySelectorAll('input[name="gainLossPeriod"]');
+const gainLossStartDateInput = document.querySelector('#gainLossStartDate');
+const gainLossEndDateInput = document.querySelector('#gainLossEndDate');
+const resetGainLossRangeButton = document.querySelector('#resetGainLossRangeButton');
 const exportButton = document.querySelector('#exportButton');
 const importInput = document.querySelector('#importInput');
 const authPanel = document.querySelector('#authPanel');
@@ -72,6 +76,10 @@ function bindDashboardEvents() {
   breakEvenForm?.addEventListener('submit', handleBreakEvenFormSubmit);
   saveFeeRuleButton?.addEventListener('click', handleSaveFeeRule);
   breakEvenTickerSelect?.addEventListener('change', handleBreakEvenTickerChange);
+  gainLossPeriodInputs.forEach(input => input.addEventListener('change', renderGainLossChart));
+  gainLossStartDateInput?.addEventListener('change', renderGainLossChart);
+  gainLossEndDateInput?.addEventListener('change', renderGainLossChart);
+  resetGainLossRangeButton?.addEventListener('click', handleResetGainLossRange);
 }
 
 async function refreshAuthenticationPanel() {
@@ -130,7 +138,55 @@ async function refreshDashboard() {
   setSelectOptions(sellTickerSelect, openHoldings);
   setSelectOptions(breakEvenTickerSelect, openHoldings);
   updateBreakEvenQuantityFromSelectedHolding(basePortfolio);
-  drawGainLossChart(chartCanvas, createGainLossTimeline(transactions));
+  initializeDefaultGainLossDateRange();
+  renderGainLossChart();
+}
+
+function renderGainLossChart() {
+  if (!chartCanvas) return;
+  const timelineData = createGainLossTimeline(transactions, getGainLossChartOptions());
+  chartCanvas.width = calculateChartCanvasWidth(timelineData.length);
+  drawGainLossChart(chartCanvas, timelineData);
+}
+
+function getGainLossChartOptions() {
+  return {
+    period: getSelectedGainLossPeriod(),
+    startDate: gainLossStartDateInput?.value || '',
+    endDate: gainLossEndDateInput?.value || getTodayDateString()
+  };
+}
+
+function getSelectedGainLossPeriod() {
+  const selectedInput = [...gainLossPeriodInputs].find(input => input.checked);
+  return selectedInput?.value || 'week';
+}
+
+function calculateChartCanvasWidth(numberOfPoints) {
+  const selectedPeriod = getSelectedGainLossPeriod();
+  const spacingByPeriod = { day: 72, week: 96, month: 112, year: 128 };
+  const spacing = spacingByPeriod[selectedPeriod] || spacingByPeriod.week;
+  return Math.max(900, numberOfPoints * spacing);
+}
+
+function initializeDefaultGainLossDateRange() {
+  if (gainLossEndDateInput && !gainLossEndDateInput.value) {
+    gainLossEndDateInput.value = getTodayDateString();
+  }
+}
+
+function handleResetGainLossRange() {
+  if (gainLossStartDateInput) gainLossStartDateInput.value = '';
+  if (gainLossEndDateInput) gainLossEndDateInput.value = getTodayDateString();
+  renderGainLossChart();
+}
+
+function getTodayDateString() {
+  const today = new Date();
+  const year = today.getFullYear();
+  const month = String(today.getMonth() + 1).padStart(2, '0');
+  const day = String(today.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function createMarketPricesMap(priceResultsByTicker) {

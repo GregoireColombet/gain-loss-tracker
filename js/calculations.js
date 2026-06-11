@@ -191,21 +191,127 @@ export function createImpactPreview(oldTransactions, newTransactions) {
   };
 }
 
-export function createGainLossTimeline(transactions) {
+export function createGainLossTimeline(transactions, options = {}) {
   const sortedTransactions = sortTransactionsByDate(transactions);
-  const timelineTransactions = [];
+  if (!sortedTransactions.length) return [];
+
+  const period = options.period || 'week';
+  const firstTransactionDate = parseDateOnly(sortedTransactions[0].date);
+  const startDate = options.startDate ? parseDateOnly(options.startDate) : firstTransactionDate;
+  const endDate = options.endDate ? parseDateOnly(options.endDate) : parseDateOnly(getTodayDateString());
+
+  if (!startDate || !endDate || startDate > endDate) return [];
+
+  const bucketStarts = createBucketStarts(startDate, endDate, period);
+  const timelineData = [];
   let cumulativeRealizedGainLoss = 0;
+  let transactionIndex = 0;
   const temporaryTransactions = [];
 
-  for (const transaction of sortedTransactions) {
-    temporaryTransactions.push(transaction);
-    const portfolio = calculatePortfolioFromTransactions(temporaryTransactions);
-    cumulativeRealizedGainLoss = portfolio.totalRealizedGainLoss;
-    timelineTransactions.push({
-      date: transaction.date,
-      value: cumulativeRealizedGainLoss
-    });
+  for (const bucketStart of bucketStarts) {
+    const bucketEnd = getBucketEndDate(bucketStart, period, endDate);
+
+    while (transactionIndex < sortedTransactions.length) {
+      const transactionDate = parseDateOnly(sortedTransactions[transactionIndex].date);
+      if (transactionDate > bucketEnd) break;
+      temporaryTransactions.push(sortedTransactions[transactionIndex]);
+      const portfolio = calculatePortfolioFromTransactions(temporaryTransactions);
+      cumulativeRealizedGainLoss = portfolio.totalRealizedGainLoss;
+      transactionIndex += 1;
+    }
+
+    if (bucketEnd >= startDate) {
+      timelineData.push({
+        date: formatDateOnly(bucketStart),
+        label: createBucketLabel(bucketStart, period),
+        value: cumulativeRealizedGainLoss
+      });
+    }
   }
 
-  return timelineTransactions;
+  return timelineData;
+}
+
+function createBucketStarts(startDate, endDate, period) {
+  const bucketStarts = [];
+  let cursor = alignDateToPeriodStart(startDate, period);
+
+  while (cursor <= endDate) {
+    bucketStarts.push(new Date(cursor));
+    cursor = addPeriod(cursor, period);
+  }
+
+  return bucketStarts;
+}
+
+function alignDateToPeriodStart(date, period) {
+  const alignedDate = new Date(date);
+  alignedDate.setHours(0, 0, 0, 0);
+
+  if (period === 'week') {
+    const dayOfWeek = alignedDate.getDay();
+    const daysSinceMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    alignedDate.setDate(alignedDate.getDate() - daysSinceMonday);
+  }
+
+  if (period === 'month') {
+    alignedDate.setDate(1);
+  }
+
+  if (period === 'year') {
+    alignedDate.setMonth(0, 1);
+  }
+
+  return alignedDate;
+}
+
+function addPeriod(date, period) {
+  const nextDate = new Date(date);
+
+  if (period === 'day') nextDate.setDate(nextDate.getDate() + 1);
+  else if (period === 'month') nextDate.setMonth(nextDate.getMonth() + 1);
+  else if (period === 'year') nextDate.setFullYear(nextDate.getFullYear() + 1);
+  else nextDate.setDate(nextDate.getDate() + 7);
+
+  return nextDate;
+}
+
+function getBucketEndDate(bucketStart, period, maximumEndDate) {
+  const nextBucketStart = addPeriod(bucketStart, period);
+  nextBucketStart.setDate(nextBucketStart.getDate() - 1);
+  return nextBucketStart > maximumEndDate ? maximumEndDate : nextBucketStart;
+}
+
+function createBucketLabel(date, period) {
+  if (period === 'day') {
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  }
+
+  if (period === 'month') {
+    return date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
+  }
+
+  if (period === 'year') {
+    return String(date.getFullYear());
+  }
+
+  return `Week of ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+}
+
+function parseDateOnly(dateString) {
+  if (!dateString) return null;
+  const [year, month, day] = String(dateString).split('-').map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
+function formatDateOnly(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getTodayDateString() {
+  return formatDateOnly(new Date());
 }
