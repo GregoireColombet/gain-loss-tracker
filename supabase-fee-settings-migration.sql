@@ -1,44 +1,62 @@
--- Run this once in Supabase SQL Editor if you want fee-rule settings to sync across devices.
--- This does not change the transactions table and does not modify historical transaction fees.
+-- Run this once in Supabase SQL Editor.
+-- This stores fee-rule defaults per authenticated user.
+-- It does not modify existing transaction records.
 
 create table if not exists public.fee_settings (
-  id text primary key default 'default',
-  user_id uuid not null default auth.uid(),
-  buy_threshold_amount numeric(20, 6) not null default 1000 check (buy_threshold_amount > 0),
-  buy_flat_fee numeric(20, 6) not null default 1 check (buy_flat_fee >= 0),
-  buy_percentage_fee_rate numeric(20, 10) not null default 0.001425 check (buy_percentage_fee_rate >= 0 and buy_percentage_fee_rate < 1),
-  sell_threshold_amount numeric(20, 6) not null default 1000 check (sell_threshold_amount > 0),
-  sell_flat_fee numeric(20, 6) not null default 1 check (sell_flat_fee >= 0),
-  sell_percentage_fee_rate numeric(20, 10) not null default 0.001425 check (sell_percentage_fee_rate >= 0 and sell_percentage_fee_rate < 1),
-  updated_at timestamptz not null default now()
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+
+  buy_threshold numeric not null default 0 check (buy_threshold >= 0),
+  buy_flat_fee numeric not null default 0 check (buy_flat_fee >= 0),
+  buy_percentage_fee numeric not null default 0 check (buy_percentage_fee >= 0 and buy_percentage_fee < 1),
+
+  sell_threshold numeric not null default 0 check (sell_threshold >= 0),
+  sell_flat_fee numeric not null default 0 check (sell_flat_fee >= 0),
+  sell_percentage_fee numeric not null default 0 check (sell_percentage_fee >= 0 and sell_percentage_fee < 1),
+
+  created_at timestamp with time zone default now(),
+  updated_at timestamp with time zone default now(),
+
+  unique(user_id)
 );
+
+-- If an older fee_settings table exists with missing columns, add them safely.
+alter table public.fee_settings add column if not exists user_id uuid references auth.users(id) on delete cascade;
+alter table public.fee_settings add column if not exists buy_threshold numeric not null default 0 check (buy_threshold >= 0);
+alter table public.fee_settings add column if not exists buy_flat_fee numeric not null default 0 check (buy_flat_fee >= 0);
+alter table public.fee_settings add column if not exists buy_percentage_fee numeric not null default 0 check (buy_percentage_fee >= 0 and buy_percentage_fee < 1);
+alter table public.fee_settings add column if not exists sell_threshold numeric not null default 0 check (sell_threshold >= 0);
+alter table public.fee_settings add column if not exists sell_flat_fee numeric not null default 0 check (sell_flat_fee >= 0);
+alter table public.fee_settings add column if not exists sell_percentage_fee numeric not null default 0 check (sell_percentage_fee >= 0 and sell_percentage_fee < 1);
+alter table public.fee_settings add column if not exists created_at timestamp with time zone default now();
+alter table public.fee_settings add column if not exists updated_at timestamp with time zone default now();
+
+create unique index if not exists fee_settings_user_id_unique on public.fee_settings(user_id);
 
 alter table public.fee_settings enable row level security;
 
-do $$
-begin
-  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'fee_settings' and policyname = 'Users can read their own fee settings') then
-    create policy "Users can read their own fee settings"
-    on public.fee_settings
-    for select
-    to authenticated
-    using (auth.uid() = user_id);
-  end if;
+drop policy if exists "Users can read their own fee settings" on public.fee_settings;
+drop policy if exists "Users can insert their own fee settings" on public.fee_settings;
+drop policy if exists "Users can update their own fee settings" on public.fee_settings;
+drop policy if exists "Users can delete their own fee settings" on public.fee_settings;
 
-  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'fee_settings' and policyname = 'Users can insert their own fee settings') then
-    create policy "Users can insert their own fee settings"
-    on public.fee_settings
-    for insert
-    to authenticated
-    with check (auth.uid() = user_id);
-  end if;
+create policy "Users can read their own fee settings"
+on public.fee_settings
+for select
+to authenticated
+using (auth.uid() = user_id);
 
-  if not exists (select 1 from pg_policies where schemaname = 'public' and tablename = 'fee_settings' and policyname = 'Users can update their own fee settings') then
-    create policy "Users can update their own fee settings"
-    on public.fee_settings
-    for update
-    to authenticated
-    using (auth.uid() = user_id)
-    with check (auth.uid() = user_id);
-  end if;
-end $$;
+create policy "Users can insert their own fee settings"
+on public.fee_settings
+for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+create policy "Users can update their own fee settings"
+on public.fee_settings
+for update
+to authenticated
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+grant select, insert, update, delete on public.fee_settings to authenticated;
