@@ -1,0 +1,101 @@
+[
+  {
+    "id": "tx_abc_001",
+    "type": "BUY",
+    "companyName": "ABC Robotics",
+    "ticker": "ABC",
+    "date": "2024-01-02",
+    "sharePrice": 100,
+    "quantity": 10,
+    "transactionFee": 1,
+    "createdAt": "2024-01-02T09:00:00Z"
+  },
+  {
+    "id": "tx_abc_002",
+    "type": "BUY",
+    "companyName": "ABC Robotics",
+    "ticker": "ABC",
+    "date": "2024-02-01",
+    "sharePrice": 50,
+    "quantity": 10,
+    "transactionFee": 1,
+    "createdAt": "2024-02-01T09:00:00Z"
+  },
+  {
+    "id": "tx_abc_003",
+    "type": "SELL",
+    "companyName": "ABC Robotics",
+    "ticker": "ABC",
+    "date": "2024-03-01",
+    "sharePrice": 90,
+    "quantity": 5,
+    "transactionFee": 2,
+    "createdAt": "2024-03-01T09:00:00Z"
+  },
+  {
+    "id": "tx_abc_004",
+    "type": "SELL",
+    "companyName": "ABC Robotics",
+    "ticker": "ABC",
+    "date": "2024-04-01",
+    "sharePrice": 80,
+    "quantity": 15,
+    "transactionFee": 3,
+    "createdAt": "2024-04-01T09:00:00Z"
+  },
+  {
+    "id": "tx_abc_005",
+    "type": "BUY",
+    "companyName": "ABC Robotics",
+    "ticker": "ABC",
+    "date": "2024-05-01",
+    "sharePrice": 200,
+    "quantity": 4,
+    "transactionFee": 1,
+    "createdAt": "2024-05-01T09:00:00Z"
+  },
+  {
+    "id": "tx_abc_006",
+    "type": "SELL",
+    "companyName": "ABC Robotics",
+    "ticker": "ABC",
+    "date": "2024-06-01",
+    "sharePrice": 180,
+    "quantity": 1,
+    "transactionFee": 1,
+    "createdAt": "2024-06-01T09:00:00Z"
+  },
+  {
+    "id": "tx_xyz_001",
+    "type": "BUY",
+    "companyName": "XYZ Energy",
+    "ticker": "XYZ",
+    "date": "2024-01-15",
+    "sharePrice": 30,
+    "quantity": 3,
+    "transactionFee": 0.5,
+    "createdAt": "2024-01-15T09:00:00Z"
+  },
+  {
+    "id": "tx_xyz_002",
+    "type": "SELL",
+    "companyName": "XYZ Energy",
+    "ticker": "XYZ",
+    "date": "2024-02-15",
+    "sharePrice": 40,
+    "quantity": 1,
+    "transactionFee": 0.5,
+    "createdAt": "2024-02-15T09:00:00Z"
+  },
+  {
+    "id": "tx_xyz_003",
+    "type": "BUY",
+    "companyName": "XYZ Energy",
+    "ticker": "XYZ",
+    "date": "2024-03-15",
+    "sharePrice": 60,
+    "quantity": 2,
+    "transactionFee": 0.5,
+    "createdAt": "2024-03-15T09:00:00Z"
+  }
+]
