@@ -12,5 +12,7 @@ export const API_STATUS = Object.freeze({
 export const STORAGE_KEYS = Object.freeze({
   TRANSACTIONS: 'stockTrackerTransactions',
   MANUAL_CURRENT_PRICES: 'stockTrackerManualCurrentPrices',
-  SELL_FEE_RULE: 'stockTrackerSellFeeRule'
+  SELL_FEE_RULE: 'stockTrackerSellFeeRule',
+  BUY_FEE_RULE: 'stockTrackerBuyFeeRule',
+  FEE_RULES: 'stockTrackerFeeRules'
 });

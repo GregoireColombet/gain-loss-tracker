@@ -1,10 +1,16 @@
+const DEFAULT_BUY_FEE_RULE = Object.freeze({
+  thresholdAmount: 1000,
+  flatFee: 1,
+  percentageFeeRate: 0.001425
+});
+
 const DEFAULT_SELL_FEE_RULE = Object.freeze({
   thresholdAmount: 1000,
   flatFee: 1,
   percentageFeeRate: 0.001425
 });
 
-export function normalizeSellFeeRule(rawRule = {}) {
+export function normalizeFeeRule(rawRule = {}, defaultRule = DEFAULT_SELL_FEE_RULE) {
   const thresholdAmount = Number(rawRule.thresholdAmount);
   const flatFee = Number(rawRule.flatFee);
   const percentageFeeRate = Number(rawRule.percentageFeeRate);
@@ -12,25 +18,56 @@ export function normalizeSellFeeRule(rawRule = {}) {
   return {
     thresholdAmount: Number.isFinite(thresholdAmount) && thresholdAmount > 0
       ? thresholdAmount
-      : DEFAULT_SELL_FEE_RULE.thresholdAmount,
+      : defaultRule.thresholdAmount,
     flatFee: Number.isFinite(flatFee) && flatFee >= 0
       ? flatFee
-      : DEFAULT_SELL_FEE_RULE.flatFee,
+      : defaultRule.flatFee,
     percentageFeeRate: Number.isFinite(percentageFeeRate) && percentageFeeRate >= 0 && percentageFeeRate < 1
       ? percentageFeeRate
-      : DEFAULT_SELL_FEE_RULE.percentageFeeRate
+      : defaultRule.percentageFeeRate
   };
 }
 
-export function calculateSellFee(grossSellAmount, sellFeeRule) {
-  const normalizedRule = normalizeSellFeeRule(sellFeeRule);
-  if (!Number.isFinite(grossSellAmount) || grossSellAmount <= 0) return 0;
+export function normalizeBuyFeeRule(rawRule = {}) {
+  return normalizeFeeRule(rawRule, DEFAULT_BUY_FEE_RULE);
+}
 
-  if (grossSellAmount < normalizedRule.thresholdAmount) {
+export function normalizeSellFeeRule(rawRule = {}) {
+  return normalizeFeeRule(rawRule, DEFAULT_SELL_FEE_RULE);
+}
+
+export function calculateTransactionFee(transactionAmount, feeRule) {
+  const normalizedRule = normalizeFeeRule(feeRule);
+  if (!Number.isFinite(transactionAmount) || transactionAmount <= 0) return 0;
+
+  if (transactionAmount < normalizedRule.thresholdAmount) {
     return normalizedRule.flatFee;
   }
 
-  return grossSellAmount * normalizedRule.percentageFeeRate;
+  return transactionAmount * normalizedRule.percentageFeeRate;
+}
+
+export function calculateBuyFee(grossBuyAmount, buyFeeRule) {
+  return calculateTransactionFee(grossBuyAmount, normalizeBuyFeeRule(buyFeeRule));
+}
+
+export function calculateSellFee(grossSellAmount, sellFeeRule) {
+  return calculateTransactionFee(grossSellAmount, normalizeSellFeeRule(sellFeeRule));
+}
+
+export function calculateFeeForTransaction(type, sharePrice, quantity, feeRules) {
+  const grossTransactionAmount = Number(sharePrice) * Number(quantity);
+  if (!Number.isFinite(grossTransactionAmount) || grossTransactionAmount <= 0) return 0;
+
+  if (type === 'BUY') {
+    return calculateBuyFee(grossTransactionAmount, feeRules.buyFeeRule);
+  }
+
+  if (type === 'SELL') {
+    return calculateSellFee(grossTransactionAmount, feeRules.sellFeeRule);
+  }
+
+  return 0;
 }
 
 export function calculateMinimumBreakEvenSellPrice(averageBuyPrice, quantityToSell, sellFeeRule) {
@@ -87,6 +124,17 @@ function createInvalidBreakEvenResult(message) {
   };
 }
 
+export function getDefaultBuyFeeRule() {
+  return { ...DEFAULT_BUY_FEE_RULE };
+}
+
 export function getDefaultSellFeeRule() {
   return { ...DEFAULT_SELL_FEE_RULE };
+}
+
+export function getDefaultFeeRules() {
+  return {
+    buyFeeRule: getDefaultBuyFeeRule(),
+    sellFeeRule: getDefaultSellFeeRule()
+  };
 }

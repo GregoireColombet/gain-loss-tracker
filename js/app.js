@@ -1,13 +1,13 @@
 import { TRANSACTION_TYPES, API_STATUS } from './constants.js';
 import { calculatePortfolioFromTransactions, calculatePortfolioWithMarketPrices, createGainLossTimeline } from './calculations.js';
-import { loadInitialTransactions, loadManualCurrentPrices, saveManualCurrentPrice, saveTransactions, exportTransactionsAsJson, importTransactionsFromFile, loadSellFeeRule, saveSellFeeRule } from './storage.js';
+import { loadInitialTransactions, loadManualCurrentPrices, saveManualCurrentPrice, saveTransactions, exportTransactionsAsJson, importTransactionsFromFile, loadFeeRules, saveFeeRules } from './storage.js';
 import { fetchCurrentMarketPrices } from './marketPriceService.js';
 import { getCurrentUser, sendLoginLink, signOutUser, onAuthStateChange, restoreSavedSession, getRememberedLoginEmail } from './authService.js';
 import { isSupabaseConfigured } from './supabaseClient.js';
 import { createTransactionFromForm, validateTransaction } from './validation.js';
 import { drawGainLossChart } from './chart.js';
 import { formatMoney, formatQuantity, getGainLossClass, showMessage, hideMessage, setSelectOptions } from './uiHelpers.js';
-import { calculateMinimumBreakEvenSellPrice, getDefaultSellFeeRule, normalizeSellFeeRule } from './feeCalculator.js';
+import { calculateFeeForTransaction, calculateMinimumBreakEvenSellPrice, getDefaultFeeRules, normalizeBuyFeeRule, normalizeSellFeeRule } from './feeCalculator.js';
 
 const transactionForm = document.querySelector('#transactionForm');
 const transactionTypeSelect = document.querySelector('#type');
@@ -34,30 +34,43 @@ const signOutButton = document.querySelector('#signOutButton');
 const breakEvenForm = document.querySelector('#breakEvenForm');
 const breakEvenTickerSelect = document.querySelector('#breakEvenTickerSelect');
 const breakEvenQuantityInput = document.querySelector('#breakEvenQuantity');
-const feeThresholdAmountInput = document.querySelector('#feeThresholdAmount');
-const flatFeeAmountInput = document.querySelector('#flatFeeAmount');
-const percentageFeeRateInput = document.querySelector('#percentageFeeRate');
+const buyFeeThresholdAmountInput = document.querySelector('#buyFeeThresholdAmount');
+const buyFlatFeeAmountInput = document.querySelector('#buyFlatFeeAmount');
+const buyPercentageFeeRateInput = document.querySelector('#buyPercentageFeeRate');
+const sellFeeThresholdAmountInput = document.querySelector('#sellFeeThresholdAmount');
+const sellFlatFeeAmountInput = document.querySelector('#sellFlatFeeAmount');
+const sellPercentageFeeRateInput = document.querySelector('#sellPercentageFeeRate');
 const saveFeeRuleButton = document.querySelector('#saveFeeRuleButton');
 const breakEvenResultElement = document.querySelector('#breakEvenResult');
+const transactionFeeInput = transactionForm?.elements.transactionFee;
+const useFeeRuleForTransactionInput = document.querySelector('#useFeeRuleForTransaction');
+const calculatedFeePreviewElement = document.querySelector('#calculatedFeePreview');
 
 let transactions = [];
 let latestMarketPriceResults = {};
-let sellFeeRule = normalizeSellFeeRule(loadSellFeeRule(getDefaultSellFeeRule()));
+let feeRules = getDefaultFeeRules();
+let isAutomaticallyUpdatingTransactionFee = false;
 
 initializeDashboard();
 
 async function initializeDashboard() {
   bindDashboardEvents();
-  renderSellFeeRuleInputs();
+  renderFeeRuleInputs();
   await restoreSavedSession();
   prefillRememberedEmail();
   await refreshAuthenticationPanel();
   onAuthStateChange(async () => {
     await refreshAuthenticationPanel();
+    feeRules = await loadFeeRules(getDefaultFeeRules());
+    renderFeeRuleInputs();
+    updateTransactionFeeFromRule();
     transactions = await loadInitialTransactions();
     await refreshDashboard();
   });
+  feeRules = await loadFeeRules(getDefaultFeeRules());
+  renderFeeRuleInputs();
   transactions = await loadInitialTransactions();
+  updateTransactionFeeFromRule();
   await refreshDashboard();
 }
 
@@ -70,12 +83,16 @@ function bindDashboardEvents() {
   transactionTypeSelect.addEventListener('change', handleTransactionTypeChange);
   sellTickerSelect.addEventListener('change', handleSellTickerSelection);
   transactionForm.addEventListener('submit', handleTransactionFormSubmit);
+  transactionForm?.sharePrice?.addEventListener('input', updateTransactionFeeFromRule);
+  transactionForm?.quantity?.addEventListener('input', updateTransactionFeeFromRule);
+  transactionFeeInput?.addEventListener('input', handleTransactionFeeManualInput);
+  useFeeRuleForTransactionInput?.addEventListener('change', updateTransactionFeeFromRule);
   exportButton.addEventListener('click', () => exportTransactionsAsJson(transactions));
   importInput.addEventListener('change', handleImportTransactions);
   authForm?.addEventListener('submit', handleLoginSubmit);
   signOutButton?.addEventListener('click', handleSignOut);
   breakEvenForm?.addEventListener('submit', handleBreakEvenFormSubmit);
-  saveFeeRuleButton?.addEventListener('click', handleSaveFeeRule);
+  saveFeeRuleButton?.addEventListener('click', handleSaveFeeRules);
   breakEvenTickerSelect?.addEventListener('change', handleBreakEvenTickerChange);
   gainLossPeriodInputs.forEach(input => input.addEventListener('change', renderGainLossChart));
   gainLossDisplayUnitInputs.forEach(input => input.addEventListener('change', renderGainLossChart));
@@ -273,26 +290,89 @@ function renderCompanyList(portfolio) {
 }
 
 
-function renderSellFeeRuleInputs() {
-  if (!feeThresholdAmountInput || !flatFeeAmountInput || !percentageFeeRateInput) return;
-  feeThresholdAmountInput.value = sellFeeRule.thresholdAmount;
-  flatFeeAmountInput.value = sellFeeRule.flatFee;
-  percentageFeeRateInput.value = sellFeeRule.percentageFeeRate * 100;
+function renderFeeRuleInputs() {
+  if (!buyFeeThresholdAmountInput || !buyFlatFeeAmountInput || !buyPercentageFeeRateInput) return;
+  if (!sellFeeThresholdAmountInput || !sellFlatFeeAmountInput || !sellPercentageFeeRateInput) return;
+
+  buyFeeThresholdAmountInput.value = feeRules.buyFeeRule.thresholdAmount;
+  buyFlatFeeAmountInput.value = feeRules.buyFeeRule.flatFee;
+  buyPercentageFeeRateInput.value = feeRules.buyFeeRule.percentageFeeRate * 100;
+
+  sellFeeThresholdAmountInput.value = feeRules.sellFeeRule.thresholdAmount;
+  sellFlatFeeAmountInput.value = feeRules.sellFeeRule.flatFee;
+  sellPercentageFeeRateInput.value = feeRules.sellFeeRule.percentageFeeRate * 100;
 }
 
-function readSellFeeRuleFromInputs() {
-  return normalizeSellFeeRule({
-    thresholdAmount: Number(feeThresholdAmountInput.value),
-    flatFee: Number(flatFeeAmountInput.value),
-    percentageFeeRate: Number(percentageFeeRateInput.value) / 100
-  });
+function readFeeRulesFromInputs() {
+  return {
+    buyFeeRule: normalizeBuyFeeRule({
+      thresholdAmount: Number(buyFeeThresholdAmountInput.value),
+      flatFee: Number(buyFlatFeeAmountInput.value),
+      percentageFeeRate: Number(buyPercentageFeeRateInput.value) / 100
+    }),
+    sellFeeRule: normalizeSellFeeRule({
+      thresholdAmount: Number(sellFeeThresholdAmountInput.value),
+      flatFee: Number(sellFlatFeeAmountInput.value),
+      percentageFeeRate: Number(sellPercentageFeeRateInput.value) / 100
+    })
+  };
 }
 
-function handleSaveFeeRule() {
-  sellFeeRule = readSellFeeRuleFromInputs();
-  saveSellFeeRule(sellFeeRule);
-  renderSellFeeRuleInputs();
-  showMessage(messageBox, 'Sell fee rule saved.', 'success');
+async function handleSaveFeeRules() {
+  feeRules = readFeeRulesFromInputs();
+  hideMessage(messageBox);
+  try {
+    await saveFeeRules(feeRules);
+    renderFeeRuleInputs();
+    updateTransactionFeeFromRule();
+    renderBreakEvenStatus('Fee rules saved. New transactions will use these rules by default. Existing transaction fees were not changed.', 'success');
+  } catch (error) {
+    renderFeeRuleInputs();
+    updateTransactionFeeFromRule();
+    renderBreakEvenStatus('Fee rules saved locally, but Supabase settings sync failed. Existing transaction fees were not changed.', 'error');
+  }
+}
+
+function handleTransactionFeeManualInput() {
+  if (isAutomaticallyUpdatingTransactionFee) return;
+  if (useFeeRuleForTransactionInput) useFeeRuleForTransactionInput.checked = false;
+  renderCalculatedFeePreview('Manual fee override is active for this transaction.');
+}
+
+function renderBreakEvenStatus(message, type = 'info') {
+  if (!breakEvenResultElement) return;
+  breakEvenResultElement.hidden = false;
+  breakEvenResultElement.className = `break-even-result message-box ${type}`;
+  breakEvenResultElement.textContent = message;
+}
+
+function updateTransactionFeeFromRule() {
+  if (!transactionForm || !transactionFeeInput || !useFeeRuleForTransactionInput) return;
+
+  if (!useFeeRuleForTransactionInput.checked) {
+    renderCalculatedFeePreview('Manual fee override is active for this transaction.');
+    return;
+  }
+
+  const transactionType = transactionTypeSelect.value;
+  const sharePrice = Number(transactionForm.sharePrice.value);
+  const quantity = Number(transactionForm.quantity.value);
+  const calculatedFee = calculateFeeForTransaction(transactionType, sharePrice, quantity, feeRules);
+
+  isAutomaticallyUpdatingTransactionFee = true;
+  transactionFeeInput.value = Number.isFinite(calculatedFee) ? calculatedFee.toFixed(6).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1') : '0';
+  isAutomaticallyUpdatingTransactionFee = false;
+
+  if (Number.isFinite(calculatedFee) && calculatedFee > 0) {
+    renderCalculatedFeePreview(`${transactionType} fee calculated from saved rule: ${formatMoney(calculatedFee)}. This amount will be stored permanently in the transaction.`);
+  } else {
+    renderCalculatedFeePreview('Fee will be calculated after price and quantity are entered.');
+  }
+}
+
+function renderCalculatedFeePreview(message) {
+  if (!calculatedFeePreviewElement) return;
+  calculatedFeePreviewElement.textContent = message;
 }
 
 function handleBreakEvenTickerChange() {
@@ -328,12 +408,12 @@ function handleBreakEvenFormSubmit(event) {
     return;
   }
 
-  sellFeeRule = readSellFeeRuleFromInputs();
-  saveSellFeeRule(sellFeeRule);
+  feeRules = readFeeRulesFromInputs();
+  saveFeeRules(feeRules).catch(error => console.error('Unable to save fee rules during break-even calculation.', error));
   const breakEvenResult = calculateMinimumBreakEvenSellPrice(
     selectedHolding.averagePrice,
     quantityToSell,
-    sellFeeRule
+    feeRules.sellFeeRule
   );
 
   if (!breakEvenResult.isValid) {
@@ -369,6 +449,7 @@ function renderBreakEvenSuccess(holding, quantityToSell, breakEvenResult) {
 function handleTransactionTypeChange() {
   const isSell = transactionTypeSelect.value === TRANSACTION_TYPES.SELL;
   document.querySelector('#sellSelectorWrapper').hidden = !isSell;
+  updateTransactionFeeFromRule();
 }
 
 function handleSellTickerSelection() {
@@ -379,6 +460,7 @@ function handleSellTickerSelection() {
   if (!holding) return;
   transactionForm.companyName.value = holding.companyName;
   transactionForm.ticker.value = holding.ticker;
+  updateTransactionFeeFromRule();
 }
 
 async function handleTransactionFormSubmit(event) {
@@ -396,9 +478,13 @@ async function handleTransactionFormSubmit(event) {
   try {
     await saveTransactions(transactions);
     transactionForm.reset();
-    showMessage(messageBox, 'Transaction saved successfully.', 'success');
+    if (useFeeRuleForTransactionInput) useFeeRuleForTransactionInput.checked = true;
+    updateTransactionFeeFromRule();
+    showMessage(messageBox, 'Transaction saved successfully. The fee value was stored permanently in this transaction.', 'success');
   } catch (error) {
     transactionForm.reset();
+    if (useFeeRuleForTransactionInput) useFeeRuleForTransactionInput.checked = true;
+    updateTransactionFeeFromRule();
     showMessage(messageBox, 'Saved locally, but Supabase sync failed. Check your Supabase setup or connection.', 'error');
   }
   await refreshDashboard();

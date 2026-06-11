@@ -2,7 +2,7 @@ import { STORAGE_KEYS } from './constants.js';
 import { validateTransactionSet } from './validation.js';
 import { isSupabaseConfigured } from './supabaseClient.js';
 import { getCurrentUser } from './authService.js';
-import { loadTransactionsFromSupabase, saveTransactionsToSupabase } from './supabaseStorage.js';
+import { loadTransactionsFromSupabase, saveTransactionsToSupabase, loadFeeRulesFromSupabase, saveFeeRulesToSupabase } from './supabaseStorage.js';
 
 export function loadTransactionsFromLocalStorage() {
   const storedTransactions = localStorage.getItem(STORAGE_KEYS.TRANSACTIONS);
@@ -127,17 +127,86 @@ export function importTransactionsFromFile(file) {
 
 
 export function loadSellFeeRule(defaultSellFeeRule) {
-  const storedRule = localStorage.getItem(STORAGE_KEYS.SELL_FEE_RULE);
-  if (!storedRule) return { ...defaultSellFeeRule };
-
-  try {
-    return { ...defaultSellFeeRule, ...JSON.parse(storedRule) };
-  } catch (error) {
-    console.error('Unable to parse sell fee rule.', error);
-    return { ...defaultSellFeeRule };
-  }
+  return loadFeeRulesFromLocalStorage({ sellFeeRule: defaultSellFeeRule }).sellFeeRule;
 }
 
 export function saveSellFeeRule(sellFeeRule) {
-  localStorage.setItem(STORAGE_KEYS.SELL_FEE_RULE, JSON.stringify(sellFeeRule, null, 2));
+  const currentFeeRules = loadFeeRulesFromLocalStorage();
+  saveFeeRulesToLocalStorage({ ...currentFeeRules, sellFeeRule });
+}
+
+export function loadFeeRulesFromLocalStorage(defaultFeeRules = {}) {
+  const fallbackFeeRules = {
+    buyFeeRule: defaultFeeRules.buyFeeRule || defaultFeeRules.sellFeeRule || {},
+    sellFeeRule: defaultFeeRules.sellFeeRule || {}
+  };
+
+  const combinedStoredRules = localStorage.getItem(STORAGE_KEYS.FEE_RULES);
+  if (combinedStoredRules) {
+    try {
+      return { ...fallbackFeeRules, ...JSON.parse(combinedStoredRules) };
+    } catch (error) {
+      console.error('Unable to parse combined fee rules.', error);
+    }
+  }
+
+  const storedBuyRule = localStorage.getItem(STORAGE_KEYS.BUY_FEE_RULE);
+  const storedSellRule = localStorage.getItem(STORAGE_KEYS.SELL_FEE_RULE);
+
+  return {
+    buyFeeRule: storedBuyRule ? { ...fallbackFeeRules.buyFeeRule, ...safeParseStoredRule(storedBuyRule) } : fallbackFeeRules.buyFeeRule,
+    sellFeeRule: storedSellRule ? { ...fallbackFeeRules.sellFeeRule, ...safeParseStoredRule(storedSellRule) } : fallbackFeeRules.sellFeeRule
+  };
+}
+
+export function saveFeeRulesToLocalStorage(feeRules) {
+  localStorage.setItem(STORAGE_KEYS.FEE_RULES, JSON.stringify(feeRules, null, 2));
+  localStorage.setItem(STORAGE_KEYS.BUY_FEE_RULE, JSON.stringify(feeRules.buyFeeRule, null, 2));
+  localStorage.setItem(STORAGE_KEYS.SELL_FEE_RULE, JSON.stringify(feeRules.sellFeeRule, null, 2));
+}
+
+export async function loadFeeRules(defaultFeeRules) {
+  const localFeeRules = loadFeeRulesFromLocalStorage(defaultFeeRules);
+
+  if (!isSupabaseConfigured()) return localFeeRules;
+
+  const currentUser = await getCurrentUser();
+  if (!currentUser) return localFeeRules;
+
+  try {
+    const supabaseFeeRules = await loadFeeRulesFromSupabase();
+    if (supabaseFeeRules) {
+      saveFeeRulesToLocalStorage(supabaseFeeRules);
+      return { ...localFeeRules, ...supabaseFeeRules };
+    }
+  } catch (error) {
+    console.error('Unable to load fee rules from Supabase. Falling back to localStorage.', error);
+  }
+
+  return localFeeRules;
+}
+
+export async function saveFeeRules(feeRules) {
+  saveFeeRulesToLocalStorage(feeRules);
+
+  if (!isSupabaseConfigured()) return;
+
+  const currentUser = await getCurrentUser();
+  if (!currentUser) return;
+
+  try {
+    await saveFeeRulesToSupabase(feeRules);
+  } catch (error) {
+    console.error('Unable to save fee rules to Supabase. Local copy was kept.', error);
+    throw error;
+  }
+}
+
+function safeParseStoredRule(storedRule) {
+  try {
+    return JSON.parse(storedRule);
+  } catch (error) {
+    console.error('Unable to parse stored fee rule.', error);
+    return {};
+  }
 }
