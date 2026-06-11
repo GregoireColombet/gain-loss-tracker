@@ -104,16 +104,16 @@ function renderTransactionTable() {
   portfolio.transactionRows.forEach(transaction => {
     const tableRow = document.createElement('tr');
     tableRow.innerHTML = `
-      <td>${transaction.date}</td>
-      <td>${transaction.type}</td>
-      <td>${transaction.companyName}</td>
-      <td>${transaction.ticker}</td>
-      <td>${formatMoney(transaction.sharePrice)}</td>
-      <td>${formatQuantity(transaction.quantity)}</td>
-      <td>${formatMoney(transaction.transactionFee)}</td>
-      <td>${formatMoney(transaction.averagePriceAfterTransaction)}</td>
-      <td class="${getGainLossClass(transaction.realizedGainLossAfterTransaction)}">${formatMoney(transaction.realizedGainLossAfterTransaction)}</td>
-      <td class="table-actions">
+      <td data-label="Date">${transaction.date}</td>
+      <td data-label="Type">${transaction.type}</td>
+      <td data-label="Company">${transaction.companyName}</td>
+      <td data-label="Ticker">${transaction.ticker}</td>
+      <td data-label="Price">${formatMoney(transaction.sharePrice)}</td>
+      <td data-label="Quantity">${formatQuantity(transaction.quantity)}</td>
+      <td data-label="Fee">${formatMoney(transaction.transactionFee)}</td>
+      <td data-label="Average after">${formatMoney(transaction.averagePriceAfterTransaction)}</td>
+      <td data-label="Realized after" class="${getGainLossClass(transaction.realizedGainLossAfterTransaction)}">${formatMoney(transaction.realizedGainLossAfterTransaction)}</td>
+      <td data-label="Actions" class="table-actions">
         <button type="button" data-action="edit" data-id="${transaction.id}">Edit</button>
         <button type="button" data-action="delete" data-id="${transaction.id}" class="danger-button">Delete</button>
       </td>
@@ -245,10 +245,10 @@ function renderTickerImpactPreview(impactPreview) {
     const newHolding = impactPreview.newPortfolio.holdingsByTicker[ticker] || { averagePrice: 0, remainingQuantity: 0, realizedGainLoss: 0 };
     return `
       <tr>
-        <td>${ticker}</td>
-        <td>${formatMoney(oldHolding.averagePrice)} → ${formatMoney(newHolding.averagePrice)}</td>
-        <td>${formatQuantity(oldHolding.remainingQuantity)} → ${formatQuantity(newHolding.remainingQuantity)}</td>
-        <td>${formatMoney(oldHolding.realizedGainLoss)} → ${formatMoney(newHolding.realizedGainLoss)}</td>
+        <td data-label="Ticker">${ticker}</td>
+        <td data-label="Average price">${formatMoney(oldHolding.averagePrice)} → ${formatMoney(newHolding.averagePrice)}</td>
+        <td data-label="Remaining qty">${formatQuantity(oldHolding.remainingQuantity)} → ${formatQuantity(newHolding.remainingQuantity)}</td>
+        <td data-label="Realized gain/loss">${formatMoney(oldHolding.realizedGainLoss)} → ${formatMoney(newHolding.realizedGainLoss)}</td>
       </tr>
     `;
   }).join('');

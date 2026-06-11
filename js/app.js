@@ -20,6 +20,7 @@ const totalUnrealizedElement = document.querySelector('#totalUnrealized');
 const overallGainLossElement = document.querySelector('#overallGainLoss');
 const chartCanvas = document.querySelector('#gainLossChart');
 const gainLossPeriodInputs = document.querySelectorAll('input[name="gainLossPeriod"]');
+const gainLossDisplayUnitInputs = document.querySelectorAll('input[name="gainLossDisplayUnit"]');
 const gainLossStartDateInput = document.querySelector('#gainLossStartDate');
 const gainLossEndDateInput = document.querySelector('#gainLossEndDate');
 const resetGainLossRangeButton = document.querySelector('#resetGainLossRangeButton');
@@ -77,6 +78,7 @@ function bindDashboardEvents() {
   saveFeeRuleButton?.addEventListener('click', handleSaveFeeRule);
   breakEvenTickerSelect?.addEventListener('change', handleBreakEvenTickerChange);
   gainLossPeriodInputs.forEach(input => input.addEventListener('change', renderGainLossChart));
+  gainLossDisplayUnitInputs.forEach(input => input.addEventListener('change', renderGainLossChart));
   gainLossStartDateInput?.addEventListener('change', renderGainLossChart);
   gainLossEndDateInput?.addEventListener('change', renderGainLossChart);
   resetGainLossRangeButton?.addEventListener('click', handleResetGainLossRange);
@@ -146,7 +148,7 @@ function renderGainLossChart() {
   if (!chartCanvas) return;
   const timelineData = createGainLossTimeline(transactions, getGainLossChartOptions());
   chartCanvas.width = calculateChartCanvasWidth(timelineData.length);
-  drawGainLossChart(chartCanvas, timelineData);
+  drawGainLossChart(chartCanvas, timelineData, { displayUnit: getSelectedGainLossDisplayUnit() });
 }
 
 function getGainLossChartOptions() {
@@ -160,6 +162,11 @@ function getGainLossChartOptions() {
 function getSelectedGainLossPeriod() {
   const selectedInput = [...gainLossPeriodInputs].find(input => input.checked);
   return selectedInput?.value || 'week';
+}
+
+function getSelectedGainLossDisplayUnit() {
+  const selectedInput = [...gainLossDisplayUnitInputs].find(input => input.checked);
+  return selectedInput?.value || 'compact';
 }
 
 function calculateChartCanvasWidth(numberOfPoints) {
