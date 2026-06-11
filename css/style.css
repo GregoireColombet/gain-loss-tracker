@@ -816,7 +816,7 @@ tbody tr:hover {
   align-items: end;
   display: grid;
   gap: 1rem;
-  grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.4fr);
+  grid-template-columns: minmax(280px, 0.85fr) minmax(180px, 0.55fr) minmax(320px, 1.4fr);
   margin-bottom: 1rem;
 }
 
@@ -826,9 +826,16 @@ tbody tr:hover {
   border-radius: 18px;
   display: grid;
   gap: 0.35rem;
-  grid-template-columns: repeat(4, 1fr);
   margin: 0;
   padding: 0.45rem;
+}
+
+.period-control {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.display-unit-control {
+  grid-template-columns: repeat(2, 1fr);
 }
 
 .segmented-control legend {
@@ -904,7 +911,8 @@ tbody tr:hover {
     gap: 0.8rem;
   }
 
-  .segmented-control {
+  .period-control,
+  .display-unit-control {
     grid-template-columns: repeat(2, 1fr);
   }
 
@@ -914,5 +922,224 @@ tbody tr:hover {
 
   .date-range-controls .secondary-button {
     width: 100%;
+  }
+}
+
+/* Width safety patch: page never scrolls horizontally; only the graph may scroll. */
+html,
+body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+body,
+.page-header,
+.layout-container,
+.panel,
+.summary-grid,
+.company-list,
+.company-card,
+.section-header,
+.form-grid,
+.chart-controls,
+.date-range-controls,
+.break-even-form,
+.break-even-row,
+.manual-price-form,
+.auth-form,
+.table-scroll-wrapper {
+  min-width: 0;
+}
+
+.page-header,
+.section-header,
+.company-card-header,
+.button-row,
+.form-actions,
+.break-even-actions,
+.dialog-actions,
+.auth-form {
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+
+.layout-container {
+  width: min(100%, 1220px);
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.panel,
+.summary-card,
+.company-card {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.page-navigation {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.page-navigation a,
+button,
+.import-label,
+input,
+select {
+  max-width: 100%;
+}
+
+/* Only the graph keeps horizontal scrolling. */
+.chart-scroll-wrapper {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.chart-scroll-wrapper canvas {
+  width: max(100%, 760px);
+  max-width: none;
+}
+
+/* Tables must fit the page width. They wrap on laptop/tablet instead of widening the page. */
+.table-scroll-wrapper {
+  overflow-x: hidden;
+  max-width: 100%;
+}
+
+table {
+  min-width: 0;
+  table-layout: fixed;
+  width: 100%;
+}
+
+th,
+td {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: normal;
+}
+
+.table-actions {
+  flex-wrap: wrap;
+}
+
+.table-actions button {
+  min-width: 0;
+  padding-inline: 12px;
+}
+
+@media (max-width: 900px) {
+  .page-header {
+    align-items: stretch;
+  }
+
+  .page-navigation {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+  }
+
+  .chart-scroll-wrapper canvas {
+    width: 680px;
+  }
+
+  /* Mobile-friendly transaction table: convert rows to cards, no horizontal scroll. */
+  .table-scroll-wrapper table,
+  .table-scroll-wrapper thead,
+  .table-scroll-wrapper tbody,
+  .table-scroll-wrapper th,
+  .table-scroll-wrapper td,
+  .table-scroll-wrapper tr {
+    display: block;
+    width: 100%;
+  }
+
+  .table-scroll-wrapper thead {
+    clip: rect(0 0 0 0);
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+
+  .table-scroll-wrapper table {
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+  }
+
+  .table-scroll-wrapper tbody {
+    display: grid;
+    gap: 12px;
+  }
+
+  .table-scroll-wrapper tr {
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    box-shadow: var(--soft-shadow);
+    overflow: hidden;
+  }
+
+  .table-scroll-wrapper td {
+    align-items: start;
+    border-bottom: 1px solid var(--border-color);
+    display: grid;
+    gap: 8px;
+    grid-template-columns: minmax(92px, 0.42fr) minmax(0, 1fr);
+    padding: 10px 12px;
+    text-align: right;
+    white-space: normal;
+  }
+
+  .table-scroll-wrapper td::before {
+    color: var(--muted-text-color);
+    content: attr(data-label);
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-align: left;
+    text-transform: uppercase;
+  }
+
+  .table-scroll-wrapper td:last-child {
+    border-bottom: 0;
+  }
+
+  .table-actions {
+    justify-content: stretch;
+  }
+
+  .table-actions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 720px) {
+  .layout-container {
+    padding-inline: 12px;
+  }
+
+  .chart-scroll-wrapper canvas {
+    width: 620px;
+    min-width: 620px;
+  }
+}
+
+@media (max-width: 420px) {
+  .page-navigation {
+    grid-template-columns: 1fr;
+  }
+
+  .layout-container {
+    padding-inline: 8px;
+  }
+
+  .chart-scroll-wrapper canvas {
+    width: 560px;
+    min-width: 560px;
   }
 }
