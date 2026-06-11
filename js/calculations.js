@@ -4,7 +4,13 @@ export function sortTransactionsByDate(transactions) {
   return [...transactions].sort((firstTransaction, secondTransaction) => {
     const firstDate = new Date(firstTransaction.date).getTime();
     const secondDate = new Date(secondTransaction.date).getTime();
-    return firstDate - secondDate;
+    if (firstDate !== secondDate) return firstDate - secondDate;
+
+    const firstCreatedAt = new Date(firstTransaction.createdAt || 0).getTime();
+    const secondCreatedAt = new Date(secondTransaction.createdAt || 0).getTime();
+    if (firstCreatedAt !== secondCreatedAt) return firstCreatedAt - secondCreatedAt;
+
+    return String(firstTransaction.id || '').localeCompare(String(secondTransaction.id || ''));
   });
 }
 
@@ -100,6 +106,37 @@ function createEmptyHolding(companyName, ticker) {
     remainingQuantity: 0,
     realizedGainLoss: 0
   };
+}
+
+export function findSellQuantityViolations(transactions) {
+  const sortedTransactions = sortTransactionsByDate(transactions);
+  const remainingQuantityByTicker = {};
+  const violations = [];
+
+  for (const transaction of sortedTransactions) {
+    const ticker = transaction.ticker.toUpperCase();
+    const currentRemainingQuantity = remainingQuantityByTicker[ticker] || 0;
+
+    if (transaction.type === TRANSACTION_TYPES.BUY) {
+      remainingQuantityByTicker[ticker] = currentRemainingQuantity + transaction.quantity;
+    }
+
+    if (transaction.type === TRANSACTION_TYPES.SELL) {
+      if (transaction.quantity > currentRemainingQuantity) {
+        violations.push({
+          transactionId: transaction.id,
+          ticker,
+          date: transaction.date,
+          requestedQuantity: transaction.quantity,
+          availableQuantity: currentRemainingQuantity
+        });
+      }
+
+      remainingQuantityByTicker[ticker] = Math.max(0, currentRemainingQuantity - transaction.quantity);
+    }
+  }
+
+  return violations;
 }
 
 export function calculatePortfolioWithMarketPrices(portfolio, marketPricesByTicker, manualPricesByTicker = {}) {

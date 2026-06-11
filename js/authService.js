@@ -1,10 +1,29 @@
 import { supabaseClient, isSupabaseConfigured } from './supabaseClient.js';
 
-export async function getCurrentUser() {
+export async function getCurrentSession() {
   if (!isSupabaseConfigured()) return null;
-  const { data, error } = await supabaseClient.auth.getUser();
+  const { data, error } = await supabaseClient.auth.getSession();
   if (error) return null;
-  return data.user || null;
+  return data.session || null;
+}
+
+export async function getCurrentUser() {
+  const currentSession = await getCurrentSession();
+  return currentSession?.user || null;
+}
+
+export async function restoreSavedSession() {
+  // Supabase restores the persisted localStorage session automatically.
+  // This wrapper makes page initialization wait for that restored session before loading records.
+  return getCurrentSession();
+}
+
+export function rememberLastLoginEmail(email) {
+  localStorage.setItem('stock-tracker-last-login-email', email);
+}
+
+export function getRememberedLoginEmail() {
+  return localStorage.getItem('stock-tracker-last-login-email') || '';
 }
 
 export async function sendLoginLink(email) {
@@ -12,10 +31,17 @@ export async function sendLoginLink(email) {
     throw new Error('Supabase is not configured yet. Fill in js/supabaseClient.js first.');
   }
 
+  rememberLastLoginEmail(email);
+
+  const redirectUrl = new URL(window.location.href);
+  redirectUrl.hash = '';
+  redirectUrl.search = '';
+
   const { error } = await supabaseClient.auth.signInWithOtp({
     email,
     options: {
-      emailRedirectTo: window.location.origin + window.location.pathname
+      emailRedirectTo: redirectUrl.toString(),
+      shouldCreateUser: true
     }
   });
 
@@ -30,6 +56,6 @@ export async function signOutUser() {
 
 export function onAuthStateChange(callback) {
   if (!isSupabaseConfigured()) return () => {};
-  const { data } = supabaseClient.auth.onAuthStateChange(() => callback());
+  const { data } = supabaseClient.auth.onAuthStateChange((_event, session) => callback(session));
   return () => data.subscription.unsubscribe();
 }

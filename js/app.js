@@ -1,12 +1,13 @@
 import { TRANSACTION_TYPES, API_STATUS } from './constants.js';
 import { calculatePortfolioFromTransactions, calculatePortfolioWithMarketPrices, createGainLossTimeline } from './calculations.js';
-import { loadInitialTransactions, loadManualCurrentPrices, saveManualCurrentPrice, saveTransactions, exportTransactionsAsJson, importTransactionsFromFile } from './storage.js';
+import { loadInitialTransactions, loadManualCurrentPrices, saveManualCurrentPrice, saveTransactions, exportTransactionsAsJson, importTransactionsFromFile, loadSellFeeRule, saveSellFeeRule } from './storage.js';
 import { fetchCurrentMarketPrices } from './marketPriceService.js';
-import { getCurrentUser, sendLoginLink, signOutUser, onAuthStateChange } from './authService.js';
+import { getCurrentUser, sendLoginLink, signOutUser, onAuthStateChange, restoreSavedSession, getRememberedLoginEmail } from './authService.js';
 import { isSupabaseConfigured } from './supabaseClient.js';
 import { createTransactionFromForm, validateTransaction } from './validation.js';
 import { drawGainLossChart } from './chart.js';
 import { formatMoney, formatQuantity, getGainLossClass, showMessage, hideMessage, setSelectOptions } from './uiHelpers.js';
+import { calculateMinimumBreakEvenSellPrice, getDefaultSellFeeRule, normalizeSellFeeRule } from './feeCalculator.js';
 
 const transactionForm = document.querySelector('#transactionForm');
 const transactionTypeSelect = document.querySelector('#type');
@@ -25,14 +26,26 @@ const authForm = document.querySelector('#authForm');
 const authEmailInput = document.querySelector('#authEmail');
 const authStatus = document.querySelector('#authStatus');
 const signOutButton = document.querySelector('#signOutButton');
+const breakEvenForm = document.querySelector('#breakEvenForm');
+const breakEvenTickerSelect = document.querySelector('#breakEvenTickerSelect');
+const breakEvenQuantityInput = document.querySelector('#breakEvenQuantity');
+const feeThresholdAmountInput = document.querySelector('#feeThresholdAmount');
+const flatFeeAmountInput = document.querySelector('#flatFeeAmount');
+const percentageFeeRateInput = document.querySelector('#percentageFeeRate');
+const saveFeeRuleButton = document.querySelector('#saveFeeRuleButton');
+const breakEvenResultElement = document.querySelector('#breakEvenResult');
 
 let transactions = [];
 let latestMarketPriceResults = {};
+let sellFeeRule = normalizeSellFeeRule(loadSellFeeRule(getDefaultSellFeeRule()));
 
 initializeDashboard();
 
 async function initializeDashboard() {
   bindDashboardEvents();
+  renderSellFeeRuleInputs();
+  await restoreSavedSession();
+  prefillRememberedEmail();
   await refreshAuthenticationPanel();
   onAuthStateChange(async () => {
     await refreshAuthenticationPanel();
@@ -43,6 +56,11 @@ async function initializeDashboard() {
   await refreshDashboard();
 }
 
+function prefillRememberedEmail() {
+  if (!authEmailInput) return;
+  authEmailInput.value = getRememberedLoginEmail();
+}
+
 function bindDashboardEvents() {
   transactionTypeSelect.addEventListener('change', handleTransactionTypeChange);
   sellTickerSelect.addEventListener('change', handleSellTickerSelection);
@@ -51,6 +69,9 @@ function bindDashboardEvents() {
   importInput.addEventListener('change', handleImportTransactions);
   authForm?.addEventListener('submit', handleLoginSubmit);
   signOutButton?.addEventListener('click', handleSignOut);
+  breakEvenForm?.addEventListener('submit', handleBreakEvenFormSubmit);
+  saveFeeRuleButton?.addEventListener('click', handleSaveFeeRule);
+  breakEvenTickerSelect?.addEventListener('change', handleBreakEvenTickerChange);
 }
 
 async function refreshAuthenticationPanel() {
@@ -65,11 +86,11 @@ async function refreshAuthenticationPanel() {
 
   const currentUser = await getCurrentUser();
   if (currentUser) {
-    authStatus.textContent = `Signed in as ${currentUser.email}. Transactions sync to Supabase.`;
+    authStatus.textContent = `Automatically connected as ${currentUser.email}. Transactions sync to Supabase.`;
     authForm.hidden = true;
     signOutButton.hidden = false;
   } else {
-    authStatus.textContent = 'Sign in with your email to sync transactions to Supabase.';
+    authStatus.textContent = 'No saved session found. Enter your email once; future visits will connect automatically on this browser.';
     authForm.hidden = false;
     signOutButton.hidden = true;
   }
@@ -81,7 +102,7 @@ async function handleLoginSubmit(event) {
   if (!email) return;
   try {
     await sendLoginLink(email);
-    showMessage(messageBox, 'Login link sent. Check your email.', 'success');
+    showMessage(messageBox, 'Login link sent. Check your email. After you open the link, this browser will remember your session automatically.', 'success');
   } catch (error) {
     showMessage(messageBox, error.message, 'error');
   }
@@ -105,7 +126,10 @@ async function refreshDashboard() {
 
   renderSummary(portfolio);
   renderCompanyList(portfolio);
-  setSelectOptions(sellTickerSelect, basePortfolio.holdings.filter(holding => holding.remainingQuantity > 0));
+  const openHoldings = basePortfolio.holdings.filter(holding => holding.remainingQuantity > 0);
+  setSelectOptions(sellTickerSelect, openHoldings);
+  setSelectOptions(breakEvenTickerSelect, openHoldings);
+  updateBreakEvenQuantityFromSelectedHolding(basePortfolio);
   drawGainLossChart(chartCanvas, createGainLossTimeline(transactions));
 }
 
@@ -183,6 +207,100 @@ function renderCompanyList(portfolio) {
     companyCard.querySelector('.manual-price-form').addEventListener('submit', handleManualPriceSubmit);
     companyListElement.appendChild(companyCard);
   });
+}
+
+
+function renderSellFeeRuleInputs() {
+  if (!feeThresholdAmountInput || !flatFeeAmountInput || !percentageFeeRateInput) return;
+  feeThresholdAmountInput.value = sellFeeRule.thresholdAmount;
+  flatFeeAmountInput.value = sellFeeRule.flatFee;
+  percentageFeeRateInput.value = sellFeeRule.percentageFeeRate * 100;
+}
+
+function readSellFeeRuleFromInputs() {
+  return normalizeSellFeeRule({
+    thresholdAmount: Number(feeThresholdAmountInput.value),
+    flatFee: Number(flatFeeAmountInput.value),
+    percentageFeeRate: Number(percentageFeeRateInput.value) / 100
+  });
+}
+
+function handleSaveFeeRule() {
+  sellFeeRule = readSellFeeRuleFromInputs();
+  saveSellFeeRule(sellFeeRule);
+  renderSellFeeRuleInputs();
+  showMessage(messageBox, 'Sell fee rule saved.', 'success');
+}
+
+function handleBreakEvenTickerChange() {
+  const portfolio = calculatePortfolioFromTransactions(transactions);
+  updateBreakEvenQuantityFromSelectedHolding(portfolio);
+}
+
+function updateBreakEvenQuantityFromSelectedHolding(portfolio) {
+  if (!breakEvenTickerSelect || !breakEvenQuantityInput) return;
+  const selectedTicker = breakEvenTickerSelect.value;
+  if (!selectedTicker) return;
+  const selectedHolding = portfolio.holdingsByTicker[selectedTicker];
+  if (!selectedHolding) return;
+  if (!breakEvenQuantityInput.value || Number(breakEvenQuantityInput.value) > selectedHolding.remainingQuantity) {
+    breakEvenQuantityInput.value = selectedHolding.remainingQuantity;
+  }
+}
+
+function handleBreakEvenFormSubmit(event) {
+  event.preventDefault();
+  const portfolio = calculatePortfolioFromTransactions(transactions);
+  const selectedTicker = breakEvenTickerSelect.value;
+  const selectedHolding = portfolio.holdingsByTicker[selectedTicker];
+
+  if (!selectedHolding || selectedHolding.remainingQuantity <= 0) {
+    renderBreakEvenError('Select a stock with remaining shares.');
+    return;
+  }
+
+  const quantityToSell = Number(breakEvenQuantityInput.value || selectedHolding.remainingQuantity);
+  if (quantityToSell > selectedHolding.remainingQuantity) {
+    renderBreakEvenError(`Quantity cannot be greater than remaining shares (${formatQuantity(selectedHolding.remainingQuantity)}).`);
+    return;
+  }
+
+  sellFeeRule = readSellFeeRuleFromInputs();
+  saveSellFeeRule(sellFeeRule);
+  const breakEvenResult = calculateMinimumBreakEvenSellPrice(
+    selectedHolding.averagePrice,
+    quantityToSell,
+    sellFeeRule
+  );
+
+  if (!breakEvenResult.isValid) {
+    renderBreakEvenError(breakEvenResult.message);
+    return;
+  }
+
+  renderBreakEvenSuccess(selectedHolding, quantityToSell, breakEvenResult);
+}
+
+function renderBreakEvenError(message) {
+  breakEvenResultElement.hidden = false;
+  breakEvenResultElement.className = 'break-even-result error-message';
+  breakEvenResultElement.textContent = message;
+}
+
+function renderBreakEvenSuccess(holding, quantityToSell, breakEvenResult) {
+  breakEvenResultElement.hidden = false;
+  breakEvenResultElement.className = 'break-even-result';
+  breakEvenResultElement.innerHTML = `
+    <h3>${holding.companyName} (${holding.ticker})</h3>
+    <p>Minimum sell price: <strong>${formatMoney(breakEvenResult.minimumSellPrice)}</strong> per share</p>
+    <div class="company-metrics">
+      <span>Quantity: ${formatQuantity(quantityToSell)}</span>
+      <span>Average buy price: ${formatMoney(holding.averagePrice)}</span>
+      <span>Gross sell amount: ${formatMoney(breakEvenResult.grossSellAmount)}</span>
+      <span>Estimated sell fee: ${formatMoney(breakEvenResult.sellFeeAmount)} (${breakEvenResult.feeMode})</span>
+      <span>Net after fee: ${formatMoney(breakEvenResult.netAmountAfterFee)}</span>
+    </div>
+  `;
 }
 
 function handleTransactionTypeChange() {

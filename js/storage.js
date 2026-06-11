@@ -1,4 +1,5 @@
 import { STORAGE_KEYS } from './constants.js';
+import { validateTransactionSet } from './validation.js';
 import { isSupabaseConfigured } from './supabaseClient.js';
 import { getCurrentUser } from './authService.js';
 import { loadTransactionsFromSupabase, saveTransactionsToSupabase } from './supabaseStorage.js';
@@ -108,6 +109,11 @@ export function importTransactionsFromFile(file) {
           reject(new Error('Imported file must contain a JSON array.'));
           return;
         }
+        const validationErrors = validateTransactionSet(importedTransactions);
+        if (validationErrors.length) {
+          reject(new Error(validationErrors.join(' ')));
+          return;
+        }
         await saveTransactions(importedTransactions);
         resolve(importedTransactions);
       } catch (error) {
@@ -117,4 +123,21 @@ export function importTransactionsFromFile(file) {
     fileReader.onerror = () => reject(fileReader.error);
     fileReader.readAsText(file);
   });
+}
+
+
+export function loadSellFeeRule(defaultSellFeeRule) {
+  const storedRule = localStorage.getItem(STORAGE_KEYS.SELL_FEE_RULE);
+  if (!storedRule) return { ...defaultSellFeeRule };
+
+  try {
+    return { ...defaultSellFeeRule, ...JSON.parse(storedRule) };
+  } catch (error) {
+    console.error('Unable to parse sell fee rule.', error);
+    return { ...defaultSellFeeRule };
+  }
+}
+
+export function saveSellFeeRule(sellFeeRule) {
+  localStorage.setItem(STORAGE_KEYS.SELL_FEE_RULE, JSON.stringify(sellFeeRule, null, 2));
 }

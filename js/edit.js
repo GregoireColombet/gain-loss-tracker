@@ -1,7 +1,7 @@
 import { calculatePortfolioFromTransactions, createImpactPreview } from './calculations.js';
 import { loadInitialTransactions, saveTransactions, exportTransactionsAsJson } from './storage.js';
-import { createTransactionFromForm, validateTransaction } from './validation.js';
-import { getCurrentUser, sendLoginLink, signOutUser, onAuthStateChange } from './authService.js';
+import { createTransactionFromForm, validateTransaction, validateTransactionSet } from './validation.js';
+import { getCurrentUser, sendLoginLink, signOutUser, onAuthStateChange, restoreSavedSession, getRememberedLoginEmail } from './authService.js';
 import { isSupabaseConfigured } from './supabaseClient.js';
 import { formatMoney, formatQuantity, getGainLossClass, showMessage, hideMessage } from './uiHelpers.js';
 
@@ -28,6 +28,8 @@ initializeEditPage();
 
 async function initializeEditPage() {
   bindEditEvents();
+  await restoreSavedSession();
+  prefillRememberedEmail();
   await refreshAuthenticationPanel();
   onAuthStateChange(async () => {
     await refreshAuthenticationPanel();
@@ -36,6 +38,11 @@ async function initializeEditPage() {
   });
   transactions = await loadInitialTransactions();
   renderTransactionTable();
+}
+
+function prefillRememberedEmail() {
+  if (!authEmailInput) return;
+  authEmailInput.value = getRememberedLoginEmail();
 }
 
 function bindEditEvents() {
@@ -60,11 +67,11 @@ async function refreshAuthenticationPanel() {
 
   const currentUser = await getCurrentUser();
   if (currentUser) {
-    authStatus.textContent = `Signed in as ${currentUser.email}. Transactions sync to Supabase.`;
+    authStatus.textContent = `Automatically connected as ${currentUser.email}. Transactions sync to Supabase.`;
     authForm.hidden = true;
     signOutButton.hidden = false;
   } else {
-    authStatus.textContent = 'Sign in with your email to sync transactions to Supabase.';
+    authStatus.textContent = 'No saved session found. Enter your email once; future visits will connect automatically on this browser.';
     authForm.hidden = false;
     signOutButton.hidden = true;
   }
@@ -76,7 +83,7 @@ async function handleLoginSubmit(event) {
   if (!email) return;
   try {
     await sendLoginLink(email);
-    showMessage(messageBox, 'Login link sent. Check your email.', 'success');
+    showMessage(messageBox, 'Login link sent. Check your email. After you open the link, this browser will remember your session automatically.', 'success');
   } catch (error) {
     showMessage(messageBox, error.message, 'error');
   }
@@ -174,6 +181,17 @@ function requestDeleteTransaction(transactionId) {
   if (!userConfirmed) return;
 
   const newTransactions = transactions.filter(transaction => transaction.id !== transactionId);
+  const errors = validateTransactionSet(newTransactions);
+
+  if (errors.length) {
+    showMessage(
+      messageBox,
+      `Deletion canceled because it would create invalid later transaction(s). ${errors.join(' ')}`,
+      'error'
+    );
+    return;
+  }
+
   openImpactDialog(transactions, newTransactions, 'Deletion');
 }
 
