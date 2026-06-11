@@ -146,12 +146,16 @@ function fillEditForm(transactionId) {
   editForm.sharePrice.value = transaction.sharePrice;
   editForm.quantity.value = transaction.quantity;
   editForm.transactionFee.value = transaction.transactionFee;
+  editForm.createdAt.value = transaction.createdAt || new Date().toISOString();
 }
+
 
 function clearEditForm() {
   editForm.reset();
   editForm.transactionId.value = '';
+  editForm.createdAt.value = '';
 }
+
 
 function handleEditFormSubmit(event) {
   event.preventDefault();
@@ -159,6 +163,11 @@ function handleEditFormSubmit(event) {
 
   const editedTransaction = createTransactionFromForm(editForm);
   const existingTransactionId = editForm.transactionId.value;
+  const existingTransaction = transactions.find(transaction => transaction.id === existingTransactionId);
+  if (existingTransaction) {
+    editedTransaction.createdAt = existingTransaction.createdAt || editedTransaction.createdAt;
+  }
+
   const errors = validateTransaction(editedTransaction, transactions, existingTransactionId);
 
   if (errors.length) {
@@ -207,11 +216,58 @@ function openImpactDialog(oldTransactions, newTransactions, actionLabel) {
       <li>Change in invested amount: ${formatMoney(impactPreview.totalCurrentlyInvestedChange)}</li>
       <li>Realized gain/loss: ${formatMoney(impactPreview.oldPortfolio.totalRealizedGainLoss)} → ${formatMoney(impactPreview.newPortfolio.totalRealizedGainLoss)}</li>
       <li>Change in realized gain/loss: ${formatMoney(impactPreview.realizedGainLossChange)}</li>
+      <li>Total fees: ${formatMoney(impactPreview.oldPortfolio.totalFees)} → ${formatMoney(impactPreview.newPortfolio.totalFees)}</li>
+      <li>Change in total fees: ${formatMoney(impactPreview.totalFeesChange)}</li>
     </ul>
-    <p>This may change average prices, remaining quantities, realized gain/loss, unrealized gain/loss, and dashboard totals.</p>
+    ${renderTickerImpactPreview(impactPreview)}
+    <p>Fee edits are treated as part of the permanent transaction record. A buy fee changes average cost; a sell fee changes realized gain/loss. All later transactions for the same ticker are recalculated before saving.</p>
   `;
 
   impactDialog.showModal();
+}
+
+function renderTickerImpactPreview(impactPreview) {
+  const affectedTickers = Array.from(new Set([
+    ...Object.keys(impactPreview.oldPortfolio.holdingsByTicker),
+    ...Object.keys(impactPreview.newPortfolio.holdingsByTicker)
+  ])).filter(ticker => {
+    const oldHolding = impactPreview.oldPortfolio.holdingsByTicker[ticker] || {};
+    const newHolding = impactPreview.newPortfolio.holdingsByTicker[ticker] || {};
+    return oldHolding.averagePrice !== newHolding.averagePrice ||
+      oldHolding.remainingQuantity !== newHolding.remainingQuantity ||
+      oldHolding.realizedGainLoss !== newHolding.realizedGainLoss;
+  });
+
+  if (!affectedTickers.length) return '';
+
+  const rows = affectedTickers.map(ticker => {
+    const oldHolding = impactPreview.oldPortfolio.holdingsByTicker[ticker] || { averagePrice: 0, remainingQuantity: 0, realizedGainLoss: 0 };
+    const newHolding = impactPreview.newPortfolio.holdingsByTicker[ticker] || { averagePrice: 0, remainingQuantity: 0, realizedGainLoss: 0 };
+    return `
+      <tr>
+        <td>${ticker}</td>
+        <td>${formatMoney(oldHolding.averagePrice)} → ${formatMoney(newHolding.averagePrice)}</td>
+        <td>${formatQuantity(oldHolding.remainingQuantity)} → ${formatQuantity(newHolding.remainingQuantity)}</td>
+        <td>${formatMoney(oldHolding.realizedGainLoss)} → ${formatMoney(newHolding.realizedGainLoss)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div class="table-scroll-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Average price</th>
+            <th>Remaining quantity</th>
+            <th>Realized gain/loss</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+  `;
 }
 
 async function confirmPendingChange() {

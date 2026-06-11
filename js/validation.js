@@ -15,7 +15,8 @@ export function createTransactionFromForm(formElement) {
     date: formData.get('date'),
     sharePrice: Number(formData.get('sharePrice')),
     quantity: Number(formData.get('quantity')),
-    transactionFee: Number(formData.get('transactionFee') || 0)
+    transactionFee: Number(formData.get('transactionFee') || 0),
+    createdAt: formData.get('createdAt') || new Date().toISOString()
   };
 }
 

@@ -14,9 +14,9 @@ export function sortTransactionsByDate(transactions) {
   });
 }
 
-export function calculateNewAveragePrice(currentAveragePrice, currentQuantity, buyPrice, buyQuantity) {
+export function calculateNewAveragePrice(currentAveragePrice, currentQuantity, buyPrice, buyQuantity, buyTransactionFee = 0) {
   const currentCost = currentAveragePrice * currentQuantity;
-  const newCost = buyPrice * buyQuantity;
+  const newCost = buyPrice * buyQuantity + buyTransactionFee;
   const newQuantity = currentQuantity + buyQuantity;
   if (newQuantity === 0) return 0;
   return (currentCost + newCost) / newQuantity;
@@ -49,7 +49,8 @@ export function calculatePortfolioFromTransactions(transactions) {
         existingHolding.averagePrice,
         existingHolding.remainingQuantity,
         transaction.sharePrice,
-        transaction.quantity
+        transaction.quantity,
+        transaction.transactionFee
       );
       existingHolding.remainingQuantity += transaction.quantity;
       existingHolding.companyName = transaction.companyName;
@@ -185,7 +186,8 @@ export function createImpactPreview(oldTransactions, newTransactions) {
     oldPortfolio,
     newPortfolio,
     totalCurrentlyInvestedChange: newPortfolio.totalCurrentlyInvested - oldPortfolio.totalCurrentlyInvested,
-    realizedGainLossChange: newPortfolio.totalRealizedGainLoss - oldPortfolio.totalRealizedGainLoss
+    realizedGainLossChange: newPortfolio.totalRealizedGainLoss - oldPortfolio.totalRealizedGainLoss,
+    totalFeesChange: newPortfolio.totalFees - oldPortfolio.totalFees
   };
 }
 

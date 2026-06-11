@@ -23,7 +23,8 @@ function mapTransactionToDatabaseRow(transaction) {
     transaction_date: transaction.date,
     share_price: Number(transaction.sharePrice),
     quantity: Number(transaction.quantity),
-    transaction_fee: Number(transaction.transactionFee || 0)
+    transaction_fee: Number(transaction.transactionFee || 0),
+    created_at: transaction.createdAt || new Date().toISOString()
   };
 }
 
