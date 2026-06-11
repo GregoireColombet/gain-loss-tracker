@@ -1,1 +1,32 @@
-
+[
+  {
+    "id": "tx_001",
+    "type": "BUY",
+    "companyName": "Apple Inc.",
+    "ticker": "AAPL",
+    "date": "2026-01-05",
+    "sharePrice": 100,
+    "quantity": 1,
+    "transactionFee": 1
+  },
+  {
+    "id": "tx_002",
+    "type": "BUY",
+    "companyName": "Apple Inc.",
+    "ticker": "AAPL",
+    "date": "2026-02-01",
+    "sharePrice": 50,
+    "quantity": 1,
+    "transactionFee": 1
+  },
+  {
+    "id": "tx_003",
+    "type": "SELL",
+    "companyName": "Apple Inc.",
+    "ticker": "AAPL",
+    "date": "2026-03-01",
+    "sharePrice": 120,
+    "quantity": 1,
+    "transactionFee": 1
+  }
+]
