@@ -564,7 +564,7 @@ async function handleSaveFeeRules() {
 
     const errorMessage = error instanceof Error && error.message.startsWith('Fee rule input missing')
       ? `${error.message}. Please refresh the page after deploying the latest index.html and app.js.`
-      : 'Fee rules saved locally, but Supabase settings sync failed. Existing transaction fees were not changed.';
+      : `Fee rules saved locally, but Supabase settings sync failed: ${getErrorMessage(error)}. Existing transaction fees were not changed.`;
 
     renderBreakEvenStatus(errorMessage, 'error');
   } finally {

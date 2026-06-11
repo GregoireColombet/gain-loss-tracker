@@ -63,31 +63,39 @@ export async function saveTransactionsToSupabase(transactions) {
   return true;
 }
 
+async function getAuthenticatedUserId() {
+  const { data, error } = await supabaseClient.auth.getUser();
+  if (error) throw error;
+  if (!data.user) throw new Error('Cannot sync fee rules because no Supabase user is logged in.');
+  return data.user.id;
+}
+
 function mapFeeSettingsRowToFeeRules(row) {
   if (!row) return null;
   return {
     buyFeeRule: {
-      thresholdAmount: Number(row.buy_threshold_amount),
+      thresholdAmount: Number(row.buy_threshold),
       flatFee: Number(row.buy_flat_fee),
-      percentageFeeRate: Number(row.buy_percentage_fee_rate)
+      percentageFeeRate: Number(row.buy_percentage_fee)
     },
     sellFeeRule: {
-      thresholdAmount: Number(row.sell_threshold_amount),
+      thresholdAmount: Number(row.sell_threshold),
       flatFee: Number(row.sell_flat_fee),
-      percentageFeeRate: Number(row.sell_percentage_fee_rate)
+      percentageFeeRate: Number(row.sell_percentage_fee)
     }
   };
 }
 
-function mapFeeRulesToSettingsRow(feeRules) {
+async function mapFeeRulesToSettingsRow(feeRules) {
+  const userId = await getAuthenticatedUserId();
   return {
-    id: 'default',
-    buy_threshold_amount: Number(feeRules.buyFeeRule.thresholdAmount),
+    user_id: userId,
+    buy_threshold: Number(feeRules.buyFeeRule.thresholdAmount),
     buy_flat_fee: Number(feeRules.buyFeeRule.flatFee),
-    buy_percentage_fee_rate: Number(feeRules.buyFeeRule.percentageFeeRate),
-    sell_threshold_amount: Number(feeRules.sellFeeRule.thresholdAmount),
+    buy_percentage_fee: Number(feeRules.buyFeeRule.percentageFeeRate),
+    sell_threshold: Number(feeRules.sellFeeRule.thresholdAmount),
     sell_flat_fee: Number(feeRules.sellFeeRule.flatFee),
-    sell_percentage_fee_rate: Number(feeRules.sellFeeRule.percentageFeeRate),
+    sell_percentage_fee: Number(feeRules.sellFeeRule.percentageFeeRate),
     updated_at: new Date().toISOString()
   };
 }
@@ -95,10 +103,12 @@ function mapFeeRulesToSettingsRow(feeRules) {
 export async function loadFeeRulesFromSupabase() {
   if (!isSupabaseConfigured()) return null;
 
+  const userId = await getAuthenticatedUserId();
+
   const { data, error } = await supabaseClient
     .from('fee_settings')
     .select('*')
-    .eq('id', 'default')
+    .eq('user_id', userId)
     .maybeSingle();
 
   if (error) throw error;
@@ -108,9 +118,11 @@ export async function loadFeeRulesFromSupabase() {
 export async function saveFeeRulesToSupabase(feeRules) {
   if (!isSupabaseConfigured()) return false;
 
+  const settingsRow = await mapFeeRulesToSettingsRow(feeRules);
+
   const { error } = await supabaseClient
     .from('fee_settings')
-    .upsert(mapFeeRulesToSettingsRow(feeRules), { onConflict: 'id' });
+    .upsert(settingsRow, { onConflict: 'user_id' });
 
   if (error) throw error;
   return true;
