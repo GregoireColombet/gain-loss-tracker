@@ -34,12 +34,12 @@ const signOutButton = document.querySelector('#signOutButton');
 const breakEvenForm = document.querySelector('#breakEvenForm');
 const breakEvenTickerSelect = document.querySelector('#breakEvenTickerSelect');
 const breakEvenQuantityInput = document.querySelector('#breakEvenQuantity');
-const buyFeeThresholdAmountInput = document.querySelector('#buyFeeThresholdAmount');
-const buyFlatFeeAmountInput = document.querySelector('#buyFlatFeeAmount');
-const buyPercentageFeeRateInput = document.querySelector('#buyPercentageFeeRate');
-const sellFeeThresholdAmountInput = document.querySelector('#sellFeeThresholdAmount');
-const sellFlatFeeAmountInput = document.querySelector('#sellFlatFeeAmount');
-const sellPercentageFeeRateInput = document.querySelector('#sellPercentageFeeRate');
+const buyFeeThresholdAmountInput = findFirstElement(['#buyFeeThresholdAmount', '#buyThresholdAmount']);
+const buyFlatFeeAmountInput = findFirstElement(['#buyFlatFeeAmount', '#buyFlatFee']);
+const buyPercentageFeeRateInput = findFirstElement(['#buyPercentageFeeRate', '#buyPercentageFee']);
+const sellFeeThresholdAmountInput = findFirstElement(['#sellFeeThresholdAmount', '#sellThresholdAmount']);
+const sellFlatFeeAmountInput = findFirstElement(['#sellFlatFeeAmount', '#sellFlatFee']);
+const sellPercentageFeeRateInput = findFirstElement(['#sellPercentageFeeRate', '#sellPercentageFee']);
 const saveFeeRuleButton = document.querySelector('#saveFeeRuleButton');
 const breakEvenResultElement = document.querySelector('#breakEvenResult');
 const transactionFeeInput = transactionForm?.elements.transactionFee;
@@ -50,6 +50,30 @@ let transactions = [];
 let latestMarketPriceResults = {};
 let feeRules = getDefaultFeeRules();
 let isAutomaticallyUpdatingTransactionFee = false;
+
+function findFirstElement(selectorList) {
+  for (const selector of selectorList) {
+    const element = document.querySelector(selector);
+    if (element) return element;
+  }
+  return null;
+}
+
+function getMissingFeeRuleInputNames() {
+  const missingInputNames = [];
+  if (!buyFeeThresholdAmountInput) missingInputNames.push('buy threshold amount');
+  if (!buyFlatFeeAmountInput) missingInputNames.push('buy flat fee amount');
+  if (!buyPercentageFeeRateInput) missingInputNames.push('buy percentage fee rate');
+  if (!sellFeeThresholdAmountInput) missingInputNames.push('sell threshold amount');
+  if (!sellFlatFeeAmountInput) missingInputNames.push('sell flat fee amount');
+  if (!sellPercentageFeeRateInput) missingInputNames.push('sell percentage fee rate');
+  return missingInputNames;
+}
+
+function canReadFeeRuleInputs() {
+  return getMissingFeeRuleInputNames().length === 0;
+}
+
 
 initializeDashboard();
 
@@ -291,8 +315,7 @@ function renderCompanyList(portfolio) {
 
 
 function renderFeeRuleInputs() {
-  if (!buyFeeThresholdAmountInput || !buyFlatFeeAmountInput || !buyPercentageFeeRateInput) return;
-  if (!sellFeeThresholdAmountInput || !sellFlatFeeAmountInput || !sellPercentageFeeRateInput) return;
+  if (!canReadFeeRuleInputs()) return;
 
   buyFeeThresholdAmountInput.value = feeRules.buyFeeRule.thresholdAmount;
   buyFlatFeeAmountInput.value = feeRules.buyFeeRule.flatFee;
@@ -304,6 +327,10 @@ function renderFeeRuleInputs() {
 }
 
 function readFeeRulesFromInputs() {
+  if (!canReadFeeRuleInputs()) {
+    throw new Error(`Fee rule input missing: ${getMissingFeeRuleInputNames().join(', ')}`);
+  }
+
   return {
     buyFeeRule: normalizeBuyFeeRule({
       thresholdAmount: Number(buyFeeThresholdAmountInput.value),
@@ -319,9 +346,10 @@ function readFeeRulesFromInputs() {
 }
 
 async function handleSaveFeeRules() {
-  feeRules = readFeeRulesFromInputs();
   hideMessage(messageBox);
+
   try {
+    feeRules = readFeeRulesFromInputs();
     await saveFeeRules(feeRules);
     renderFeeRuleInputs();
     updateTransactionFeeFromRule();
@@ -329,7 +357,12 @@ async function handleSaveFeeRules() {
   } catch (error) {
     renderFeeRuleInputs();
     updateTransactionFeeFromRule();
-    renderBreakEvenStatus('Fee rules saved locally, but Supabase settings sync failed. Existing transaction fees were not changed.', 'error');
+
+    const errorMessage = error instanceof Error && error.message.startsWith('Fee rule input missing')
+      ? `${error.message}. Please refresh the page after deploying the latest index.html and app.js.`
+      : 'Fee rules saved locally, but Supabase settings sync failed. Existing transaction fees were not changed.';
+
+    renderBreakEvenStatus(errorMessage, 'error');
   }
 }
 
