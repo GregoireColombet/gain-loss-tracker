@@ -383,3 +383,29 @@ th {
 .auth-form label {
   min-width: 260px;
 }
+
+.break-even-panel {
+  border-left: 4px solid #64748b;
+}
+
+.break-even-form {
+  align-items: end;
+}
+
+.break-even-result {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid #d4d4d8;
+  border-radius: 0.75rem;
+  background: #fafafa;
+}
+
+.break-even-result h3 {
+  margin-top: 0;
+}
+
+.error-message {
+  border-color: #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+}
