@@ -126,15 +126,6 @@ export function importTransactionsFromFile(file) {
 }
 
 
-export function loadSellFeeRule(defaultSellFeeRule) {
-  return loadFeeRulesFromLocalStorage({ sellFeeRule: defaultSellFeeRule }).sellFeeRule;
-}
-
-export function saveSellFeeRule(sellFeeRule) {
-  const currentFeeRules = loadFeeRulesFromLocalStorage();
-  saveFeeRulesToLocalStorage({ ...currentFeeRules, sellFeeRule });
-}
-
 export function loadFeeRulesFromLocalStorage(defaultFeeRules = {}) {
   const fallbackFeeRules = {
     buyFeeRule: defaultFeeRules.buyFeeRule || defaultFeeRules.sellFeeRule || {},

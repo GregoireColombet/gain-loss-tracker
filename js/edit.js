@@ -24,7 +24,119 @@ let transactions = [];
 let pendingTransactionsAfterChange = null;
 let pendingSuccessMessage = '';
 
-initializeEditPage();
+
+function setButtonProcessing(buttonElement, isProcessing, processingText = 'Saving...') {
+  if (!buttonElement) return;
+  if (isProcessing) {
+    buttonElement.dataset.originalText = buttonElement.textContent;
+    buttonElement.textContent = processingText;
+    buttonElement.disabled = true;
+    return;
+  }
+  buttonElement.textContent = buttonElement.dataset.originalText || buttonElement.textContent;
+  buttonElement.disabled = false;
+  delete buttonElement.dataset.originalText;
+}
+
+function clearFieldError(fieldElement) {
+  if (!fieldElement) return;
+  fieldElement.classList.remove('input-error');
+  fieldElement.removeAttribute('aria-invalid');
+  const labelElement = fieldElement.closest('label');
+  const errorElement = labelElement?.querySelector('.field-error-message');
+  errorElement?.remove();
+}
+
+function setFieldError(fieldElement, message) {
+  if (!fieldElement) return;
+  fieldElement.classList.add('input-error');
+  fieldElement.setAttribute('aria-invalid', 'true');
+  const labelElement = fieldElement.closest('label');
+  if (!labelElement) return;
+  let errorElement = labelElement.querySelector('.field-error-message');
+  if (!errorElement) {
+    errorElement = document.createElement('span');
+    errorElement.className = 'field-error-message';
+    labelElement.appendChild(errorElement);
+  }
+  errorElement.textContent = message;
+}
+
+function clearFormValidation(formElement) {
+  if (!formElement) return;
+  formElement.querySelectorAll('.input-error').forEach(clearFieldError);
+  formElement.querySelectorAll('.field-error-message').forEach(element => element.remove());
+}
+
+function bindLiveValidationCleanup(formElement) {
+  if (!formElement) return;
+  formElement.addEventListener('input', event => {
+    if (event.target.matches('input, select')) clearFieldError(event.target);
+  });
+  formElement.addEventListener('change', event => {
+    if (event.target.matches('input, select')) clearFieldError(event.target);
+  });
+}
+
+function scrollToFirstInvalidField(formElement) {
+  const firstInvalidField = formElement?.querySelector('.input-error');
+  firstInvalidField?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  firstInvalidField?.focus({ preventScroll: true });
+}
+
+function getRequiredTransactionFieldErrors(formElement) {
+  const fieldErrors = [];
+  const requiredFields = [
+    { field: formElement?.elements.type, message: 'Action is required.' },
+    { field: formElement?.elements.companyName, message: 'Company name is required.' },
+    { field: formElement?.elements.ticker, message: 'Ticker is required.' },
+    { field: formElement?.elements.date, message: 'Date is required.' },
+    { field: formElement?.elements.sharePrice, message: 'Share price must be greater than 0.' },
+    { field: formElement?.elements.quantity, message: 'Quantity must be greater than 0.' },
+    { field: formElement?.elements.transactionFee, message: 'Transaction fee cannot be negative.' }
+  ];
+
+  requiredFields.forEach(({ field, message }) => {
+    if (!field) return;
+    const rawValue = String(field.value || '').trim();
+    if (field.name === 'sharePrice' || field.name === 'quantity') {
+      const numericValue = Number(rawValue);
+      if (!rawValue || !Number.isFinite(numericValue) || numericValue <= 0) fieldErrors.push({ field, message });
+      return;
+    }
+    if (field.name === 'transactionFee') {
+      const numericValue = Number(rawValue || 0);
+      if (!Number.isFinite(numericValue) || numericValue < 0) fieldErrors.push({ field, message });
+      return;
+    }
+    if (!rawValue) fieldErrors.push({ field, message });
+  });
+
+  return fieldErrors;
+}
+
+function applyTransactionFormValidation(formElement, transaction, existingTransactions, transactionIdToIgnore = null) {
+  clearFormValidation(formElement);
+  const fieldErrors = getRequiredTransactionFieldErrors(formElement);
+  fieldErrors.forEach(({ field, message }) => setFieldError(field, message));
+  if (fieldErrors.length) {
+    showMessage(messageBox, `Save failed. ${fieldErrors.length} field(s) require attention.`, 'error');
+    scrollToFirstInvalidField(formElement);
+    return true;
+  }
+
+  const logicalErrors = validateTransaction(transaction, existingTransactions, transactionIdToIgnore);
+  if (logicalErrors.length) {
+    showMessage(messageBox, logicalErrors.join(' '), 'error');
+    return true;
+  }
+
+  return false;
+}
+
+initializeEditPage().catch(error => {
+  showMessage(messageBox, `Edit page startup failed: ${getErrorMessage(error)}`, 'error');
+});
 
 async function initializeEditPage() {
   bindEditEvents();
@@ -32,9 +144,13 @@ async function initializeEditPage() {
   prefillRememberedEmail();
   await refreshAuthenticationPanel();
   onAuthStateChange(async () => {
-    await refreshAuthenticationPanel();
-    transactions = await loadInitialTransactions();
-    renderTransactionTable();
+    try {
+      await refreshAuthenticationPanel();
+      transactions = await loadInitialTransactions();
+      renderTransactionTable();
+    } catch (error) {
+      showMessage(messageBox, `Authentication refresh failed: ${getErrorMessage(error)}`, 'error');
+    }
   });
   transactions = await loadInitialTransactions();
   renderTransactionTable();
@@ -46,6 +162,7 @@ function prefillRememberedEmail() {
 }
 
 function bindEditEvents() {
+  bindLiveValidationCleanup(editForm);
   editForm.addEventListener('submit', handleEditFormSubmit);
   clearFormButton.addEventListener('click', clearEditForm);
   confirmImpactButton.addEventListener('click', confirmPendingChange);
@@ -90,10 +207,15 @@ async function handleLoginSubmit(event) {
 }
 
 async function handleSignOut() {
-  await signOutUser();
-  transactions = await loadInitialTransactions();
-  await refreshAuthenticationPanel();
-  renderTransactionTable();
+  try {
+    await signOutUser();
+    transactions = await loadInitialTransactions();
+    await refreshAuthenticationPanel();
+    renderTransactionTable();
+    showMessage(messageBox, 'Signed out successfully.', 'success');
+  } catch (error) {
+    showMessage(messageBox, `Logout failed: ${getErrorMessage(error)}`, 'error');
+  }
 }
 
 
@@ -136,7 +258,10 @@ function handleTableActionClick(event) {
 
 function fillEditForm(transactionId) {
   const transaction = transactions.find(item => item.id === transactionId);
-  if (!transaction) return;
+  if (!transaction) {
+    showMessage(messageBox, 'Unable to edit: transaction was not found. Refresh the page and try again.', 'error');
+    return;
+  }
 
   editForm.transactionId.value = transaction.id;
   editForm.type.value = transaction.type;
@@ -154,6 +279,7 @@ function clearEditForm() {
   editForm.reset();
   editForm.transactionId.value = '';
   editForm.createdAt.value = '';
+  clearFormValidation(editForm);
 }
 
 
@@ -168,12 +294,7 @@ function handleEditFormSubmit(event) {
     editedTransaction.createdAt = existingTransaction.createdAt || editedTransaction.createdAt;
   }
 
-  const errors = validateTransaction(editedTransaction, transactions, existingTransactionId);
-
-  if (errors.length) {
-    showMessage(messageBox, errors.join(' '), 'error');
-    return;
-  }
+  if (applyTransactionFormValidation(editForm, editedTransaction, transactions, existingTransactionId)) return;
 
   const newTransactions = existingTransactionId
     ? transactions.map(transaction => transaction.id === existingTransactionId ? editedTransaction : transaction)
@@ -184,7 +305,10 @@ function handleEditFormSubmit(event) {
 
 function requestDeleteTransaction(transactionId) {
   const transactionToDelete = transactions.find(transaction => transaction.id === transactionId);
-  if (!transactionToDelete) return;
+  if (!transactionToDelete) {
+    showMessage(messageBox, 'Unable to delete: transaction was not found. Refresh the page and try again.', 'error');
+    return;
+  }
 
   const userConfirmed = confirm(`Delete this transaction?\n${transactionToDelete.type} ${transactionToDelete.ticker} on ${transactionToDelete.date}`);
   if (!userConfirmed) return;
@@ -271,7 +395,11 @@ function renderTickerImpactPreview(impactPreview) {
 }
 
 async function confirmPendingChange() {
-  if (!pendingTransactionsAfterChange) return;
+  if (!pendingTransactionsAfterChange) {
+    showMessage(messageBox, 'No pending change to save.', 'error');
+    return;
+  }
+  setButtonProcessing(confirmImpactButton, true, 'Saving...');
   transactions = pendingTransactionsAfterChange;
   try {
     await saveTransactions(transactions);
@@ -282,7 +410,9 @@ async function confirmPendingChange() {
     showMessage(messageBox, pendingSuccessMessage, 'success');
   } catch (error) {
     transactions = await loadInitialTransactions();
-    showMessage(messageBox, 'Unable to save to Supabase. Records were reloaded.', 'error');
+    showMessage(messageBox, `Unable to save records. Records were reloaded. ${getErrorMessage(error)}`, 'error');
+  } finally {
+    setButtonProcessing(confirmImpactButton, false);
   }
 }
 
@@ -290,4 +420,9 @@ function cancelPendingChange() {
   pendingTransactionsAfterChange = null;
   impactDialog.close();
   showMessage(messageBox, 'Change canceled. Records were not modified.', 'info');
+}
+
+
+function getErrorMessage(error) {
+  return error instanceof Error && error.message ? error.message : 'Unexpected error. Please check the browser console for details.';
 }

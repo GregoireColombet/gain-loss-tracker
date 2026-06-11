@@ -75,7 +75,198 @@ function canReadFeeRuleInputs() {
 }
 
 
-initializeDashboard();
+function setButtonProcessing(buttonElement, isProcessing, processingText = 'Saving...') {
+  if (!buttonElement) return;
+  if (isProcessing) {
+    buttonElement.dataset.originalText = buttonElement.textContent;
+    buttonElement.textContent = processingText;
+    buttonElement.disabled = true;
+    return;
+  }
+  buttonElement.textContent = buttonElement.dataset.originalText || buttonElement.textContent;
+  buttonElement.disabled = false;
+  delete buttonElement.dataset.originalText;
+}
+
+
+function clearFieldError(fieldElement) {
+  if (!fieldElement) return;
+  fieldElement.classList.remove('input-error');
+  fieldElement.removeAttribute('aria-invalid');
+  const labelElement = fieldElement.closest('label');
+  const errorElement = labelElement?.querySelector('.field-error-message');
+  errorElement?.remove();
+}
+
+function setFieldError(fieldElement, message) {
+  if (!fieldElement) return;
+  fieldElement.classList.add('input-error');
+  fieldElement.setAttribute('aria-invalid', 'true');
+  const labelElement = fieldElement.closest('label');
+  if (!labelElement) return;
+  let errorElement = labelElement.querySelector('.field-error-message');
+  if (!errorElement) {
+    errorElement = document.createElement('span');
+    errorElement.className = 'field-error-message';
+    labelElement.appendChild(errorElement);
+  }
+  errorElement.textContent = message;
+}
+
+function clearFormValidation(formElement) {
+  if (!formElement) return;
+  formElement.querySelectorAll('.input-error').forEach(clearFieldError);
+  formElement.querySelectorAll('.field-error-message').forEach(element => element.remove());
+}
+
+function bindLiveValidationCleanup(formElement) {
+  if (!formElement) return;
+  formElement.addEventListener('input', event => {
+    if (event.target.matches('input, select')) clearFieldError(event.target);
+  });
+  formElement.addEventListener('change', event => {
+    if (event.target.matches('input, select')) clearFieldError(event.target);
+  });
+}
+
+function scrollToFirstInvalidField(formElement) {
+  const firstInvalidField = formElement?.querySelector('.input-error');
+  firstInvalidField?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  firstInvalidField?.focus({ preventScroll: true });
+}
+
+function getRequiredTransactionFieldErrors(formElement) {
+  const fieldErrors = [];
+  const requiredFields = [
+    { field: formElement?.elements.type, message: 'Action is required.' },
+    { field: formElement?.elements.companyName, message: 'Company name is required.' },
+    { field: formElement?.elements.ticker, message: 'Ticker is required.' },
+    { field: formElement?.elements.date, message: 'Date is required.' },
+    { field: formElement?.elements.sharePrice, message: 'Share price must be greater than 0.' },
+    { field: formElement?.elements.quantity, message: 'Quantity must be greater than 0.' },
+    { field: formElement?.elements.transactionFee, message: 'Transaction fee cannot be negative.' }
+  ];
+
+  requiredFields.forEach(({ field, message }) => {
+    if (!field) return;
+    const rawValue = String(field.value || '').trim();
+    if (field.name === 'sharePrice' || field.name === 'quantity') {
+      const numericValue = Number(rawValue);
+      if (!rawValue || !Number.isFinite(numericValue) || numericValue <= 0) fieldErrors.push({ field, message });
+      return;
+    }
+    if (field.name === 'transactionFee') {
+      const numericValue = Number(rawValue || 0);
+      if (!Number.isFinite(numericValue) || numericValue < 0) fieldErrors.push({ field, message });
+      return;
+    }
+    if (!rawValue) fieldErrors.push({ field, message });
+  });
+
+  return fieldErrors;
+}
+
+function applyFieldErrors(formElement, fieldErrors, messageTarget, failurePrefix = 'Save failed') {
+  clearFormValidation(formElement);
+  fieldErrors.forEach(({ field, message }) => setFieldError(field, message));
+  if (fieldErrors.length) {
+    showMessage(messageTarget, `${failurePrefix}. ${fieldErrors.length} field(s) require attention.`, 'error');
+    scrollToFirstInvalidField(formElement);
+    return true;
+  }
+  return false;
+}
+
+function validateTransactionFormUi(formElement, transaction, existingTransactions, transactionIdToIgnore = null, messageTarget = messageBox) {
+  const fieldErrors = getRequiredTransactionFieldErrors(formElement);
+  if (applyFieldErrors(formElement, fieldErrors, messageTarget)) return true;
+
+  const logicalErrors = validateTransaction(transaction, existingTransactions, transactionIdToIgnore);
+  if (logicalErrors.length) {
+    showMessage(messageTarget, logicalErrors.join(' '), 'error');
+    return true;
+  }
+
+  return false;
+}
+
+function getFeeRuleFieldErrors() {
+  if (!canReadFeeRuleInputs()) {
+    return [{ field: buyFeeThresholdAmountInput || buyFlatFeeAmountInput || buyPercentageFeeRateInput, message: `Fee rule input missing: ${getMissingFeeRuleInputNames().join(', ')}` }];
+  }
+
+  const fieldErrors = [];
+  const feeFields = [
+    { field: buyFeeThresholdAmountInput, label: 'Buy threshold' },
+    { field: buyFlatFeeAmountInput, label: 'Buy flat fee' },
+    { field: buyPercentageFeeRateInput, label: 'Buy percentage fee' },
+    { field: sellFeeThresholdAmountInput, label: 'Sell threshold' },
+    { field: sellFlatFeeAmountInput, label: 'Sell flat fee' },
+    { field: sellPercentageFeeRateInput, label: 'Sell percentage fee' }
+  ];
+
+  feeFields.forEach(({ field, label }) => {
+    const rawValue = String(field?.value || '').trim();
+    const numericValue = Number(rawValue);
+    if (!rawValue || !Number.isFinite(numericValue) || numericValue < 0) {
+      fieldErrors.push({ field, message: `${label} must be 0 or greater.` });
+    }
+  });
+
+  const buyFlatFee = Number(buyFlatFeeAmountInput?.value || 0);
+  const buyPercentageFee = Number(buyPercentageFeeRateInput?.value || 0);
+  if (Number.isFinite(buyFlatFee) && Number.isFinite(buyPercentageFee) && buyFlatFee <= 0 && buyPercentageFee <= 0) {
+    fieldErrors.push({ field: buyFlatFeeAmountInput, message: 'Buy rule needs a flat fee or percentage fee greater than 0.' });
+    fieldErrors.push({ field: buyPercentageFeeRateInput, message: 'Buy rule needs a flat fee or percentage fee greater than 0.' });
+  }
+
+  const sellFlatFee = Number(sellFlatFeeAmountInput?.value || 0);
+  const sellPercentageFee = Number(sellPercentageFeeRateInput?.value || 0);
+  if (Number.isFinite(sellFlatFee) && Number.isFinite(sellPercentageFee) && sellFlatFee <= 0 && sellPercentageFee <= 0) {
+    fieldErrors.push({ field: sellFlatFeeAmountInput, message: 'Sell rule needs a flat fee or percentage fee greater than 0.' });
+    fieldErrors.push({ field: sellPercentageFeeRateInput, message: 'Sell rule needs a flat fee or percentage fee greater than 0.' });
+  }
+
+  return fieldErrors;
+}
+
+function validateFeeRuleUi() {
+  const fieldErrors = getFeeRuleFieldErrors();
+  clearFormValidation(breakEvenForm);
+  fieldErrors.forEach(({ field, message }) => setFieldError(field, message));
+  if (fieldErrors.length) {
+    renderBreakEvenStatus(`Save failed. ${fieldErrors.length} fee field(s) require attention.`, 'error');
+    scrollToFirstInvalidField(breakEvenForm);
+    return true;
+  }
+  return false;
+}
+
+function validateBreakEvenUi(selectedHolding) {
+  const fieldErrors = [];
+  if (!breakEvenTickerSelect?.value || !selectedHolding) {
+    fieldErrors.push({ field: breakEvenTickerSelect, message: 'Select a stock with remaining shares.' });
+  }
+  const quantityToSell = Number(breakEvenQuantityInput?.value || 0);
+  if (!Number.isFinite(quantityToSell) || quantityToSell <= 0) {
+    fieldErrors.push({ field: breakEvenQuantityInput, message: 'Quantity must be greater than 0.' });
+  } else if (selectedHolding && quantityToSell > selectedHolding.remainingQuantity) {
+    fieldErrors.push({ field: breakEvenQuantityInput, message: `Quantity cannot be greater than remaining shares (${formatQuantity(selectedHolding.remainingQuantity)}).` });
+  }
+  clearFormValidation(breakEvenForm);
+  fieldErrors.forEach(({ field, message }) => setFieldError(field, message));
+  if (fieldErrors.length) {
+    renderBreakEvenStatus(`Validation failed. ${fieldErrors.length} field(s) require attention.`, 'error');
+    scrollToFirstInvalidField(breakEvenForm);
+    return true;
+  }
+  return false;
+}
+
+
+initializeDashboard().catch(error => {
+  showMessage(messageBox, `Application startup failed: ${getErrorMessage(error)}`, 'error');
+});
 
 async function initializeDashboard() {
   bindDashboardEvents();
@@ -84,12 +275,16 @@ async function initializeDashboard() {
   prefillRememberedEmail();
   await refreshAuthenticationPanel();
   onAuthStateChange(async () => {
-    await refreshAuthenticationPanel();
-    feeRules = await loadFeeRules(getDefaultFeeRules());
-    renderFeeRuleInputs();
-    updateTransactionFeeFromRule();
-    transactions = await loadInitialTransactions();
-    await refreshDashboard();
+    try {
+      await refreshAuthenticationPanel();
+      feeRules = await loadFeeRules(getDefaultFeeRules());
+      renderFeeRuleInputs();
+      updateTransactionFeeFromRule();
+      transactions = await loadInitialTransactions();
+      await refreshDashboard();
+    } catch (error) {
+      showMessage(messageBox, `Authentication refresh failed: ${getErrorMessage(error)}`, 'error');
+    }
   });
   feeRules = await loadFeeRules(getDefaultFeeRules());
   renderFeeRuleInputs();
@@ -104,6 +299,8 @@ function prefillRememberedEmail() {
 }
 
 function bindDashboardEvents() {
+  bindLiveValidationCleanup(transactionForm);
+  bindLiveValidationCleanup(breakEvenForm);
   transactionTypeSelect.addEventListener('change', handleTransactionTypeChange);
   sellTickerSelect.addEventListener('change', handleSellTickerSelection);
   transactionForm.addEventListener('submit', handleTransactionFormSubmit);
@@ -160,10 +357,15 @@ async function handleLoginSubmit(event) {
 }
 
 async function handleSignOut() {
-  await signOutUser();
-  transactions = await loadInitialTransactions();
-  await refreshAuthenticationPanel();
-  await refreshDashboard();
+  try {
+    await signOutUser();
+    transactions = await loadInitialTransactions();
+    await refreshAuthenticationPanel();
+    await refreshDashboard();
+    showMessage(messageBox, 'Signed out successfully.', 'success');
+  } catch (error) {
+    showMessage(messageBox, `Logout failed: ${getErrorMessage(error)}`, 'error');
+  }
 }
 
 
@@ -347,6 +549,8 @@ function readFeeRulesFromInputs() {
 
 async function handleSaveFeeRules() {
   hideMessage(messageBox);
+  if (validateFeeRuleUi()) return;
+  setButtonProcessing(saveFeeRuleButton, true, 'Saving...');
 
   try {
     feeRules = readFeeRulesFromInputs();
@@ -363,6 +567,8 @@ async function handleSaveFeeRules() {
       : 'Fee rules saved locally, but Supabase settings sync failed. Existing transaction fees were not changed.';
 
     renderBreakEvenStatus(errorMessage, 'error');
+  } finally {
+    setButtonProcessing(saveFeeRuleButton, false);
   }
 }
 
@@ -430,19 +636,15 @@ function handleBreakEvenFormSubmit(event) {
   const selectedTicker = breakEvenTickerSelect.value;
   const selectedHolding = portfolio.holdingsByTicker[selectedTicker];
 
-  if (!selectedHolding || selectedHolding.remainingQuantity <= 0) {
-    renderBreakEvenError('Select a stock with remaining shares.');
-    return;
-  }
+  if (validateBreakEvenUi(selectedHolding)) return;
+  if (validateFeeRuleUi()) return;
 
   const quantityToSell = Number(breakEvenQuantityInput.value || selectedHolding.remainingQuantity);
-  if (quantityToSell > selectedHolding.remainingQuantity) {
-    renderBreakEvenError(`Quantity cannot be greater than remaining shares (${formatQuantity(selectedHolding.remainingQuantity)}).`);
-    return;
-  }
 
   feeRules = readFeeRulesFromInputs();
-  saveFeeRules(feeRules).catch(error => console.error('Unable to save fee rules during break-even calculation.', error));
+  saveFeeRules(feeRules).catch(error => {
+    renderBreakEvenStatus(`Break-even calculation completed, but fee-rule sync failed: ${getErrorMessage(error)}. Local values remain available.`, 'error');
+  });
   const breakEvenResult = calculateMinimumBreakEvenSellPrice(
     selectedHolding.averagePrice,
     quantityToSell,
@@ -500,25 +702,27 @@ async function handleTransactionFormSubmit(event) {
   event.preventDefault();
   hideMessage(messageBox);
 
+  const submitButton = transactionForm.querySelector('button[type="submit"]');
   const transaction = createTransactionFromForm(transactionForm);
-  const errors = validateTransaction(transaction, transactions);
-  if (errors.length) {
-    showMessage(messageBox, errors.join(' '), 'error');
-    return;
-  }
+  if (validateTransactionFormUi(transactionForm, transaction, transactions, null, messageBox)) return;
 
+  setButtonProcessing(submitButton, true, 'Saving...');
   transactions.push(transaction);
   try {
     await saveTransactions(transactions);
     transactionForm.reset();
+    clearFormValidation(transactionForm);
     if (useFeeRuleForTransactionInput) useFeeRuleForTransactionInput.checked = true;
     updateTransactionFeeFromRule();
     showMessage(messageBox, 'Transaction saved successfully. The fee value was stored permanently in this transaction.', 'success');
   } catch (error) {
     transactionForm.reset();
+    clearFormValidation(transactionForm);
     if (useFeeRuleForTransactionInput) useFeeRuleForTransactionInput.checked = true;
     updateTransactionFeeFromRule();
     showMessage(messageBox, 'Saved locally, but Supabase sync failed. Check your Supabase setup or connection.', 'error');
+  } finally {
+    setButtonProcessing(submitButton, false);
   }
   await refreshDashboard();
 }
@@ -534,9 +738,13 @@ async function handleManualPriceSubmit(event) {
     return;
   }
 
-  saveManualCurrentPrice(ticker, manualPrice);
-  showMessage(messageBox, `Manual current price saved for ${ticker}.`, 'success');
-  await refreshDashboard();
+  try {
+    saveManualCurrentPrice(ticker, manualPrice);
+    showMessage(messageBox, `Manual current price saved for ${ticker}.`, 'success');
+    await refreshDashboard();
+  } catch (error) {
+    showMessage(messageBox, `Manual current price could not be saved: ${getErrorMessage(error)}`, 'error');
+  }
 }
 
 async function handleImportTransactions(event) {
@@ -548,6 +756,12 @@ async function handleImportTransactions(event) {
     showMessage(messageBox, 'Transactions imported successfully.', 'success');
     await refreshDashboard();
   } catch (error) {
-    showMessage(messageBox, `Import failed: ${error.message}`, 'error');
+    showMessage(messageBox, `Import failed: ${getErrorMessage(error)}`, 'error');
+  } finally {
+    event.target.value = '';
   }
+}
+
+function getErrorMessage(error) {
+  return error instanceof Error && error.message ? error.message : 'Unexpected error. Please check the browser console for details.';
 }
