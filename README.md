@@ -209,3 +209,15 @@ This calculator is a planning tool only. It does not create, edit, or delete tra
 ### Fee editing rule
 
 The transaction fee field is editable on both BUY and SELL transactions. BUY fees are included in the weighted average cost basis. SELL fees reduce realized gain/loss. When any historical transaction fee is edited, the app recalculates all later transactions for the same ticker and shows an impact preview before saving.
+
+## Fee rule defaults
+
+The dashboard now has separate BUY and SELL fee rules.
+
+- Saving fee rules stores default settings in localStorage.
+- If the optional `fee_settings` Supabase table exists, the settings also sync to Supabase.
+- New BUY/SELL transactions use the saved rule by default and copy the calculated amount into `transactionFee`.
+- The fee can still be manually overridden before saving.
+- Existing saved transaction fees are never recalculated or rewritten when fee rules change.
+
+If you want fee settings to sync across devices, rerun the `fee_settings` part of `supabase-schema.sql` in the Supabase SQL editor.
