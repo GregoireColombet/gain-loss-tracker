@@ -44,7 +44,7 @@ export async function saveTransactions(transactions) {
 
   const currentUser = await getCurrentUser();
   if (!currentUser) {
-    throw new Error('Cannot sync fee rules to Supabase because the user is not logged in. Local fee rules were saved only on this browser.');
+    throw new Error('Cannot sync transactions to Supabase because the user is not logged in. Local transactions were saved only on this browser.');
   }
 
   try {
@@ -186,7 +186,7 @@ export async function saveFeeRules(feeRules) {
 
   const currentUser = await getCurrentUser();
   if (!currentUser) {
-    throw new Error('Cannot sync fee rules to Supabase because the user is not logged in. Local fee rules were saved only on this browser.');
+    throw new Error('Cannot sync transactions to Supabase because the user is not logged in. Local transactions were saved only on this browser.');
   }
 
   try {

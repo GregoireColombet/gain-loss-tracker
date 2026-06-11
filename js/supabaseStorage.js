@@ -1,5 +1,11 @@
 import { supabaseClient, isSupabaseConfigured } from './supabaseClient.js';
 
+function buildSupabaseError(context, error) {
+  if (!error) return new Error(context);
+  const detailParts = [error.message, error.details, error.hint, error.code].filter(Boolean);
+  return new Error(`${context}: ${detailParts.join(' | ')}`);
+}
+
 function mapDatabaseRowToTransaction(row) {
   return {
     id: row.id,
@@ -9,14 +15,22 @@ function mapDatabaseRowToTransaction(row) {
     date: row.transaction_date,
     sharePrice: Number(row.share_price),
     quantity: Number(row.quantity),
-    transactionFee: Number(row.transaction_fee || 0),
+    transactionFee: Number(row.transaction_fee ?? row.fee ?? 0),
     createdAt: row.created_at
   };
 }
 
-function mapTransactionToDatabaseRow(transaction) {
+async function getAuthenticatedUserId(context = 'Supabase operation') {
+  const { data, error } = await supabaseClient.auth.getUser();
+  if (error) throw buildSupabaseError(`${context} failed because the current user could not be read`, error);
+  if (!data.user) throw new Error(`${context} failed because no Supabase user is logged in.`);
+  return data.user.id;
+}
+
+function mapTransactionToDatabaseRow(transaction, userId) {
   return {
     id: transaction.id,
+    user_id: userId,
     type: transaction.type,
     company_name: transaction.companyName,
     ticker: transaction.ticker.toUpperCase(),
@@ -31,43 +45,55 @@ function mapTransactionToDatabaseRow(transaction) {
 export async function loadTransactionsFromSupabase() {
   if (!isSupabaseConfigured()) return null;
 
+  const userId = await getAuthenticatedUserId('Load transactions');
   const { data, error } = await supabaseClient
     .from('transactions')
-    .select('*')
+    .select('id,type,company_name,ticker,transaction_date,share_price,quantity,transaction_fee,created_at,user_id')
+    .eq('user_id', userId)
     .order('transaction_date', { ascending: true })
     .order('created_at', { ascending: true });
 
-  if (error) throw error;
-  return data.map(mapDatabaseRowToTransaction);
+  if (error) throw buildSupabaseError('Unable to load transactions from Supabase transactions', error);
+  return (data || []).map(mapDatabaseRowToTransaction);
 }
 
 export async function saveTransactionsToSupabase(transactions) {
   if (!isSupabaseConfigured()) return false;
 
-  const databaseRows = transactions.map(mapTransactionToDatabaseRow);
+  const userId = await getAuthenticatedUserId('Save transactions');
+  const databaseRows = transactions.map(transaction => mapTransactionToDatabaseRow(transaction, userId));
+  const localIds = databaseRows.map(row => row.id);
 
-  const { error: deleteError } = await supabaseClient
+  if (databaseRows.length > 0) {
+    const { error: upsertError } = await supabaseClient
+      .from('transactions')
+      .upsert(databaseRows, { onConflict: 'id' });
+
+    if (upsertError) throw buildSupabaseError('Unable to save transactions to Supabase transactions', upsertError);
+  }
+
+  const { data: existingRows, error: loadExistingError } = await supabaseClient
     .from('transactions')
-    .delete()
-    .neq('id', '00000000-0000-0000-0000-000000000000');
+    .select('id')
+    .eq('user_id', userId);
 
-  if (deleteError) throw deleteError;
+  if (loadExistingError) throw buildSupabaseError('Unable to verify saved Supabase transactions before cleanup', loadExistingError);
 
-  if (databaseRows.length === 0) return true;
+  const staleIds = (existingRows || [])
+    .map(row => row.id)
+    .filter(id => !localIds.includes(id));
 
-  const { error: insertError } = await supabaseClient
-    .from('transactions')
-    .insert(databaseRows);
+  if (staleIds.length > 0) {
+    const { error: deleteError } = await supabaseClient
+      .from('transactions')
+      .delete()
+      .in('id', staleIds)
+      .eq('user_id', userId);
 
-  if (insertError) throw insertError;
+    if (deleteError) throw buildSupabaseError('Unable to delete removed transactions from Supabase transactions', deleteError);
+  }
+
   return true;
-}
-
-async function getAuthenticatedUserId() {
-  const { data, error } = await supabaseClient.auth.getUser();
-  if (error) throw error;
-  if (!data.user) throw new Error('Cannot sync fee rules because no Supabase user is logged in.');
-  return data.user.id;
 }
 
 function mapFeeSettingsRowToFeeRules(row) {
@@ -87,7 +113,7 @@ function mapFeeSettingsRowToFeeRules(row) {
 }
 
 async function mapFeeRulesToSettingsRow(feeRules) {
-  const userId = await getAuthenticatedUserId();
+  const userId = await getAuthenticatedUserId('Save fee rules');
   return {
     user_id: userId,
     buy_threshold: Number(feeRules.buyFeeRule.thresholdAmount),
@@ -103,15 +129,15 @@ async function mapFeeRulesToSettingsRow(feeRules) {
 export async function loadFeeRulesFromSupabase() {
   if (!isSupabaseConfigured()) return null;
 
-  const userId = await getAuthenticatedUserId();
+  const userId = await getAuthenticatedUserId('Load fee rules');
 
   const { data, error } = await supabaseClient
     .from('fee_settings')
-    .select('*')
+    .select('user_id,buy_threshold,buy_flat_fee,buy_percentage_fee,sell_threshold,sell_flat_fee,sell_percentage_fee,updated_at')
     .eq('user_id', userId)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) throw buildSupabaseError('Unable to load fee rules from Supabase fee_settings', error);
   return mapFeeSettingsRowToFeeRules(data);
 }
 
@@ -120,10 +146,14 @@ export async function saveFeeRulesToSupabase(feeRules) {
 
   const settingsRow = await mapFeeRulesToSettingsRow(feeRules);
 
-  const { error } = await supabaseClient
+  const { data, error } = await supabaseClient
     .from('fee_settings')
-    .upsert(settingsRow, { onConflict: 'user_id' });
+    .upsert(settingsRow, { onConflict: 'user_id' })
+    .select('user_id,buy_threshold,buy_flat_fee,buy_percentage_fee,sell_threshold,sell_flat_fee,sell_percentage_fee,updated_at')
+    .maybeSingle();
 
-  if (error) throw error;
-  return true;
+  if (error) throw buildSupabaseError('Unable to save fee rules to Supabase fee_settings', error);
+  if (!data) throw new Error('Unable to save fee rules to Supabase fee_settings: no row was returned after save. Check RLS policies and authenticated user.');
+
+  return mapFeeSettingsRowToFeeRules(data);
 }
