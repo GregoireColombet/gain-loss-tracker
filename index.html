@@ -28,7 +28,7 @@
         </div>
         <button id="signOutButton" type="button" class="secondary-button" hidden>Sign out</button>
       </div>
-      <form id="authForm" class="auth-form" hidden>
+      <form id="authForm" class="auth-form" hidden novalidate>
         <label>
           Email
           <input id="authEmail" type="email" placeholder="you@example.com" required>
@@ -118,7 +118,7 @@
           <p>Calculate the minimum sell price needed to avoid losing money after sell transaction fees.</p>
         </div>
       </div>
-      <form id="breakEvenForm" class="break-even-form">
+      <form id="breakEvenForm" class="break-even-form" novalidate>
         <div class="break-even-row break-even-stock-row">
           <label>
             Stock holding
@@ -184,7 +184,7 @@
         </div>
       </div>
       <div id="messageBox" class="message-box" hidden></div>
-      <form id="transactionForm" class="form-grid">
+      <form id="transactionForm" class="form-grid" novalidate>
         <input type="hidden" name="transactionId">
         <input type="hidden" name="createdAt">
         <label>
