@@ -62,6 +62,38 @@
           <p>Cumulative realized gain/loss. Unrealized value depends on live/manual current prices.</p>
         </div>
       </div>
+      <div class="chart-controls" aria-label="Gain/loss chart controls">
+        <fieldset class="segmented-control">
+          <legend>Group by</legend>
+          <label>
+            <input type="radio" name="gainLossPeriod" value="day">
+            <span>Day</span>
+          </label>
+          <label>
+            <input type="radio" name="gainLossPeriod" value="week" checked>
+            <span>Week</span>
+          </label>
+          <label>
+            <input type="radio" name="gainLossPeriod" value="month">
+            <span>Month</span>
+          </label>
+          <label>
+            <input type="radio" name="gainLossPeriod" value="year">
+            <span>Year</span>
+          </label>
+        </fieldset>
+        <div class="date-range-controls">
+          <label>
+            Start date optional
+            <input id="gainLossStartDate" type="date">
+          </label>
+          <label>
+            End date optional
+            <input id="gainLossEndDate" type="date">
+          </label>
+          <button id="resetGainLossRangeButton" type="button" class="secondary-button">Reset range</button>
+        </div>
+      </div>
       <div class="chart-scroll-wrapper">
         <canvas id="gainLossChart" width="900" height="320" aria-label="Gain loss chart"></canvas>
       </div>
