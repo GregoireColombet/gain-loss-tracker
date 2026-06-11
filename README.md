@@ -204,3 +204,8 @@ Formula behavior:
 - At or above the threshold: `net amount = gross sell amount - percentage fee`
 
 This calculator is a planning tool only. It does not create, edit, or delete transaction records.
+
+
+### Fee editing rule
+
+The transaction fee field is editable on both BUY and SELL transactions. BUY fees are included in the weighted average cost basis. SELL fees reduce realized gain/loss. When any historical transaction fee is edited, the app recalculates all later transactions for the same ticker and shows an impact preview before saving.

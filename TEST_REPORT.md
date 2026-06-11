@@ -137,3 +137,8 @@ Expected result:
 ```text
 All portfolio calculation, propagation, validation, API-failure, sort, and break-even fee tests passed.
 ```
+
+
+## Fee editing propagation update
+
+Validated that transaction fees are editable after saving. Buy fees are included in the average cost basis, sell fees are deducted from realized gain/loss, and editing an old fee recalculates later transactions for the same ticker before saving. The impact dialog now displays total fee changes and per-ticker average price / remaining quantity / realized gain-loss changes.
