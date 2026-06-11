@@ -63,7 +63,7 @@
         </div>
       </div>
       <div class="chart-controls" aria-label="Gain/loss chart controls">
-        <fieldset class="segmented-control">
+        <fieldset class="segmented-control period-control">
           <legend>Group by</legend>
           <label>
             <input type="radio" name="gainLossPeriod" value="day">
@@ -80,6 +80,17 @@
           <label>
             <input type="radio" name="gainLossPeriod" value="year">
             <span>Year</span>
+          </label>
+        </fieldset>
+        <fieldset class="segmented-control display-unit-control">
+          <legend>Display units</legend>
+          <label>
+            <input type="radio" name="gainLossDisplayUnit" value="raw">
+            <span>Raw</span>
+          </label>
+          <label>
+            <input type="radio" name="gainLossDisplayUnit" value="compact" checked>
+            <span>Compact</span>
           </label>
         </fieldset>
         <div class="date-range-controls">
