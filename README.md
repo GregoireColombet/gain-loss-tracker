@@ -11,7 +11,7 @@ A personal and educational stock transaction tracker built with HTML, CSS, JavaS
 - Manual current price fallback
 - API failure display: `API not reachable`
 - API failure never modifies transaction records
-- Supabase database sync with email magic-link sign-in
+- Supabase database sync with email magic-link sign-in and automatic session restore
 - localStorage fallback when Supabase is not configured
 - Transaction edit page
 - Delete confirmation
@@ -23,6 +23,27 @@ A personal and educational stock transaction tracker built with HTML, CSS, JavaS
 ## Important note about Yahoo Finance
 
 The Yahoo Finance quote endpoint is used only for personal and educational use. It is unofficial and may break, be blocked by CORS, or become unreachable. When this happens, the app displays `API not reachable` and keeps all transaction records unchanged.
+
+
+## Automatic Supabase login behavior
+
+The app uses Supabase Auth with:
+
+```javascript
+persistSession: true
+autoRefreshToken: true
+detectSessionInUrl: true
+```
+
+This means:
+
+```text
+First visit: enter email and open the magic link.
+Future visits: the browser restores the saved session automatically.
+Login appears again only if you sign out, clear browser storage, use another browser/device, or the session expires.
+```
+
+The saved auth session is separate from transaction records. If the session cannot be restored, the app does not modify Supabase records.
 
 ## Supabase setup
 
@@ -164,3 +185,22 @@ stock-tracker/
 └── data/
     └── transactions.json
 ```
+
+## Break-even sell price calculator
+
+The dashboard includes a calculator that estimates the minimum sell price needed to avoid a loss after sell transaction fees.
+
+Inputs:
+
+- Stock holding
+- Quantity to sell
+- Flat fee threshold amount
+- Flat fee amount
+- Percentage fee rate above the threshold
+
+Formula behavior:
+
+- Under the threshold: `net amount = gross sell amount - flat fee`
+- At or above the threshold: `net amount = gross sell amount - percentage fee`
+
+This calculator is a planning tool only. It does not create, edit, or delete transaction records.
