@@ -1,9 +1,12 @@
-import { calculatePortfolioFromTransactions, createImpactPreview } from './calculations.js';
 import { loadInitialTransactions, saveTransactions, exportTransactionsAsJson } from './storage.js';
-import { createTransactionFromForm, validateTransaction, validateTransactionSet } from './validation.js';
-import { getCurrentUser, sendLoginLink, signOutUser, onAuthStateChange, restoreSavedSession, getRememberedLoginEmail } from './authService.js';
-import { isSupabaseConfigured } from './supabaseClient.js';
-import { formatMoney, formatQuantity, getGainLossClass, showMessage, hideMessage } from './uiHelpers.js';
+import { createTransactionFromForm, validateTransactionSet } from './validation.js';
+import { getRememberedLoginEmail, onAuthStateChange, restoreSavedSession } from './authService.js';
+import { showMessage, hideMessage } from './uiHelpers.js';
+import { getErrorMessage, setButtonProcessing } from './utils/dom.js';
+import { refreshAuthenticationPanel, sendLoginLinkFromForm, signOutAndReloadData } from './ui/authPanel.js';
+import { bindLiveValidationCleanup, clearFormValidation, validateTransactionFormUi } from './ui/formValidation.js';
+import { TRANSACTION_SORT_DIRECTIONS, TRANSACTION_SORT_FIELDS, renderTransactionTable as renderEditableTransactionTable } from './ui/editTransactionTable.js';
+import { renderImpactDialog } from './ui/impactPreviewDialog.js';
 
 const editForm = document.querySelector('#editForm');
 const transactionTableBody = document.querySelector('#transactionTableBody');
@@ -19,120 +22,18 @@ const authForm = document.querySelector('#authForm');
 const authEmailInput = document.querySelector('#authEmail');
 const authStatus = document.querySelector('#authStatus');
 const signOutButton = document.querySelector('#signOutButton');
+const transactionSortFieldSelect = document.querySelector('#transactionSortField');
+const transactionSortDirectionSelect = document.querySelector('#transactionSortDirection');
+const transactionSortStatus = document.querySelector('#transactionSortStatus');
+const sortableHeaderButtons = document.querySelectorAll('.column-sort-button');
 
 let transactions = [];
 let pendingTransactionsAfterChange = null;
 let pendingSuccessMessage = '';
-
-
-function setButtonProcessing(buttonElement, isProcessing, processingText = 'Saving...') {
-  if (!buttonElement) return;
-  if (isProcessing) {
-    buttonElement.dataset.originalText = buttonElement.textContent;
-    buttonElement.textContent = processingText;
-    buttonElement.disabled = true;
-    return;
-  }
-  buttonElement.textContent = buttonElement.dataset.originalText || buttonElement.textContent;
-  buttonElement.disabled = false;
-  delete buttonElement.dataset.originalText;
-}
-
-function clearFieldError(fieldElement) {
-  if (!fieldElement) return;
-  fieldElement.classList.remove('input-error');
-  fieldElement.removeAttribute('aria-invalid');
-  const labelElement = fieldElement.closest('label');
-  const errorElement = labelElement?.querySelector('.field-error-message');
-  errorElement?.remove();
-}
-
-function setFieldError(fieldElement, message) {
-  if (!fieldElement) return;
-  fieldElement.classList.add('input-error');
-  fieldElement.setAttribute('aria-invalid', 'true');
-  const labelElement = fieldElement.closest('label');
-  if (!labelElement) return;
-  let errorElement = labelElement.querySelector('.field-error-message');
-  if (!errorElement) {
-    errorElement = document.createElement('span');
-    errorElement.className = 'field-error-message';
-    labelElement.appendChild(errorElement);
-  }
-  errorElement.textContent = message;
-}
-
-function clearFormValidation(formElement) {
-  if (!formElement) return;
-  formElement.querySelectorAll('.input-error').forEach(clearFieldError);
-  formElement.querySelectorAll('.field-error-message').forEach(element => element.remove());
-}
-
-function bindLiveValidationCleanup(formElement) {
-  if (!formElement) return;
-  formElement.addEventListener('input', event => {
-    if (event.target.matches('input, select')) clearFieldError(event.target);
-  });
-  formElement.addEventListener('change', event => {
-    if (event.target.matches('input, select')) clearFieldError(event.target);
-  });
-}
-
-function scrollToFirstInvalidField(formElement) {
-  const firstInvalidField = formElement?.querySelector('.input-error');
-  firstInvalidField?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  firstInvalidField?.focus({ preventScroll: true });
-}
-
-function getRequiredTransactionFieldErrors(formElement) {
-  const fieldErrors = [];
-  const requiredFields = [
-    { field: formElement?.elements.type, message: 'Action is required.' },
-    { field: formElement?.elements.companyName, message: 'Company name is required.' },
-    { field: formElement?.elements.ticker, message: 'Ticker is required.' },
-    { field: formElement?.elements.date, message: 'Date is required.' },
-    { field: formElement?.elements.sharePrice, message: 'Share price must be greater than 0.' },
-    { field: formElement?.elements.quantity, message: 'Quantity must be greater than 0.' },
-    { field: formElement?.elements.transactionFee, message: 'Transaction fee cannot be negative.' }
-  ];
-
-  requiredFields.forEach(({ field, message }) => {
-    if (!field) return;
-    const rawValue = String(field.value || '').trim();
-    if (field.name === 'sharePrice' || field.name === 'quantity') {
-      const numericValue = Number(rawValue);
-      if (!rawValue || !Number.isFinite(numericValue) || numericValue <= 0) fieldErrors.push({ field, message });
-      return;
-    }
-    if (field.name === 'transactionFee') {
-      const numericValue = Number(rawValue || 0);
-      if (!Number.isFinite(numericValue) || numericValue < 0) fieldErrors.push({ field, message });
-      return;
-    }
-    if (!rawValue) fieldErrors.push({ field, message });
-  });
-
-  return fieldErrors;
-}
-
-function applyTransactionFormValidation(formElement, transaction, existingTransactions, transactionIdToIgnore = null) {
-  clearFormValidation(formElement);
-  const fieldErrors = getRequiredTransactionFieldErrors(formElement);
-  fieldErrors.forEach(({ field, message }) => setFieldError(field, message));
-  if (fieldErrors.length) {
-    showMessage(messageBox, `Save failed. ${fieldErrors.length} field(s) require attention.`, 'error');
-    scrollToFirstInvalidField(formElement);
-    return true;
-  }
-
-  const logicalErrors = validateTransaction(transaction, existingTransactions, transactionIdToIgnore);
-  if (logicalErrors.length) {
-    showMessage(messageBox, logicalErrors.join(' '), 'error');
-    return true;
-  }
-
-  return false;
-}
+let transactionSortConfig = {
+  field: TRANSACTION_SORT_FIELDS.DATE,
+  direction: TRANSACTION_SORT_DIRECTIONS.DESC
+};
 
 initializeEditPage().catch(error => {
   showMessage(messageBox, `Edit page startup failed: ${getErrorMessage(error)}`, 'error');
@@ -142,16 +43,8 @@ async function initializeEditPage() {
   bindEditEvents();
   await restoreSavedSession();
   prefillRememberedEmail();
-  await refreshAuthenticationPanel();
-  onAuthStateChange(async () => {
-    try {
-      await refreshAuthenticationPanel();
-      transactions = await loadInitialTransactions();
-      renderTransactionTable();
-    } catch (error) {
-      showMessage(messageBox, `Authentication refresh failed: ${getErrorMessage(error)}`, 'error');
-    }
-  });
+  await updateAuthenticationPanel();
+  onAuthStateChange(handleAuthenticationChange);
   transactions = await loadInitialTransactions();
   renderTransactionTable();
 }
@@ -168,81 +61,137 @@ function bindEditEvents() {
   confirmImpactButton.addEventListener('click', confirmPendingChange);
   cancelImpactButton.addEventListener('click', cancelPendingChange);
   exportButton.addEventListener('click', () => exportTransactionsAsJson(transactions));
-  authForm?.addEventListener('submit', handleLoginSubmit);
+  transactionSortFieldSelect?.addEventListener('change', handleSortFieldChange);
+  transactionSortDirectionSelect?.addEventListener('change', handleSortDirectionChange);
+  sortableHeaderButtons.forEach(button => button.addEventListener('click', handleSortableHeaderClick));
+  authForm?.addEventListener('submit', event => sendLoginLinkFromForm(event, authEmailInput, messageBox));
   signOutButton?.addEventListener('click', handleSignOut);
 }
 
-async function refreshAuthenticationPanel() {
-  if (!authPanel) return;
-
-  if (!isSupabaseConfigured()) {
-    authStatus.textContent = 'Supabase is not configured yet. The app is using localStorage.';
-    authForm.hidden = true;
-    signOutButton.hidden = true;
-    return;
-  }
-
-  const currentUser = await getCurrentUser();
-  if (currentUser) {
-    authStatus.textContent = `Automatically connected as ${currentUser.email}. Transactions sync to Supabase.`;
-    authForm.hidden = true;
-    signOutButton.hidden = false;
-  } else {
-    authStatus.textContent = 'No saved session found. Enter your email once; future visits will connect automatically on this browser.';
-    authForm.hidden = false;
-    signOutButton.hidden = true;
-  }
+async function updateAuthenticationPanel() {
+  await refreshAuthenticationPanel({ authPanel, authForm, authStatus, signOutButton });
 }
 
-async function handleLoginSubmit(event) {
-  event.preventDefault();
-  const email = authEmailInput.value.trim();
-  if (!email) return;
+async function handleAuthenticationChange() {
   try {
-    await sendLoginLink(email);
-    showMessage(messageBox, 'Login link sent. Check your email. After you open the link, this browser will remember your session automatically.', 'success');
+    await updateAuthenticationPanel();
+    transactions = await loadInitialTransactions();
+    renderTransactionTable();
   } catch (error) {
-    showMessage(messageBox, error.message, 'error');
+    showMessage(messageBox, `Authentication refresh failed: ${getErrorMessage(error)}`, 'error');
   }
 }
 
 async function handleSignOut() {
-  try {
-    await signOutUser();
-    transactions = await loadInitialTransactions();
-    await refreshAuthenticationPanel();
-    renderTransactionTable();
-    showMessage(messageBox, 'Signed out successfully.', 'success');
-  } catch (error) {
-    showMessage(messageBox, `Logout failed: ${getErrorMessage(error)}`, 'error');
+  await signOutAndReloadData({
+    messageBox,
+    loadData: loadInitialTransactions,
+    refreshAuthPanel: updateAuthenticationPanel,
+    afterSignOut: async reloadedTransactions => {
+      transactions = reloadedTransactions;
+      renderTransactionTable();
+    }
+  });
+}
+
+function renderTransactionTable() {
+  syncSortControls();
+  renderEditableTransactionTable(transactions, transactionTableBody, handleTableActionClick, transactionSortConfig);
+}
+
+function getSortDirectionLabel() {
+  if (transactionSortConfig.field === TRANSACTION_SORT_FIELDS.COMPANY) {
+    return transactionSortConfig.direction === TRANSACTION_SORT_DIRECTIONS.ASC ? 'A → Z' : 'Z → A';
+  }
+
+  return transactionSortConfig.direction === TRANSACTION_SORT_DIRECTIONS.ASC ? 'Oldest first' : 'Newest first';
+}
+
+function syncSortDirectionOptions() {
+  if (!transactionSortDirectionSelect) return;
+
+  const options = transactionSortConfig.field === TRANSACTION_SORT_FIELDS.COMPANY
+    ? [
+      { value: TRANSACTION_SORT_DIRECTIONS.ASC, label: 'A → Z' },
+      { value: TRANSACTION_SORT_DIRECTIONS.DESC, label: 'Z → A' }
+    ]
+    : [
+      { value: TRANSACTION_SORT_DIRECTIONS.DESC, label: 'Newest first' },
+      { value: TRANSACTION_SORT_DIRECTIONS.ASC, label: 'Oldest first' }
+    ];
+
+  transactionSortDirectionSelect.innerHTML = options
+    .map(option => `<option value="${option.value}">${option.label}</option>`)
+    .join('');
+  transactionSortDirectionSelect.value = transactionSortConfig.direction;
+}
+
+function syncSortableHeaders() {
+  sortableHeaderButtons.forEach(button => {
+    const headerCell = button.closest('th');
+    const indicator = button.querySelector('.sort-indicator');
+    const isActiveSortColumn = button.dataset.sortField === transactionSortConfig.field;
+
+    if (!headerCell || !indicator) return;
+
+    headerCell.setAttribute('aria-sort', isActiveSortColumn
+      ? (transactionSortConfig.direction === TRANSACTION_SORT_DIRECTIONS.ASC ? 'ascending' : 'descending')
+      : 'none');
+
+    if (!isActiveSortColumn) {
+      indicator.textContent = '↕';
+      return;
+    }
+
+    if (transactionSortConfig.field === TRANSACTION_SORT_FIELDS.COMPANY) {
+      indicator.textContent = transactionSortConfig.direction === TRANSACTION_SORT_DIRECTIONS.ASC ? 'A→Z' : 'Z→A';
+      return;
+    }
+
+    indicator.textContent = transactionSortConfig.direction === TRANSACTION_SORT_DIRECTIONS.ASC ? '↑' : '↓';
+  });
+}
+
+function syncSortControls() {
+  if (transactionSortFieldSelect) transactionSortFieldSelect.value = transactionSortConfig.field;
+  syncSortDirectionOptions();
+  syncSortableHeaders();
+  if (transactionSortStatus) {
+    const fieldLabel = transactionSortConfig.field === TRANSACTION_SORT_FIELDS.COMPANY ? 'Company' : 'Date';
+    transactionSortStatus.textContent = `Sorted by ${fieldLabel}, ${getSortDirectionLabel()}.`;
   }
 }
 
+function handleSortFieldChange(event) {
+  const nextField = event.target.value;
+  transactionSortConfig = {
+    field: nextField,
+    direction: nextField === TRANSACTION_SORT_FIELDS.COMPANY
+      ? TRANSACTION_SORT_DIRECTIONS.ASC
+      : TRANSACTION_SORT_DIRECTIONS.DESC
+  };
+  renderTransactionTable();
+}
 
-function renderTransactionTable() {
-  const portfolio = calculatePortfolioFromTransactions(transactions);
-  transactionTableBody.innerHTML = '';
+function handleSortDirectionChange(event) {
+  transactionSortConfig = {
+    ...transactionSortConfig,
+    direction: event.target.value
+  };
+  renderTransactionTable();
+}
 
-  portfolio.transactionRows.forEach(transaction => {
-    const tableRow = document.createElement('tr');
-    tableRow.innerHTML = `
-      <td data-label="Date">${transaction.date}</td>
-      <td data-label="Type">${transaction.type}</td>
-      <td data-label="Company">${transaction.companyName}</td>
-      <td data-label="Ticker">${transaction.ticker}</td>
-      <td data-label="Price">${formatMoney(transaction.sharePrice)}</td>
-      <td data-label="Quantity">${formatQuantity(transaction.quantity)}</td>
-      <td data-label="Fee">${formatMoney(transaction.transactionFee)}</td>
-      <td data-label="Average after">${formatMoney(transaction.averagePriceAfterTransaction)}</td>
-      <td data-label="Realized after" class="${getGainLossClass(transaction.realizedGainLossAfterTransaction)}">${formatMoney(transaction.realizedGainLossAfterTransaction)}</td>
-      <td data-label="Actions" class="table-actions">
-        <button type="button" data-action="edit" data-id="${transaction.id}">Edit</button>
-        <button type="button" data-action="delete" data-id="${transaction.id}" class="danger-button">Delete</button>
-      </td>
-    `;
-    tableRow.addEventListener('click', handleTableActionClick);
-    transactionTableBody.appendChild(tableRow);
-  });
+function handleSortableHeaderClick(event) {
+  const selectedField = event.currentTarget.dataset.sortField;
+  const isCurrentField = selectedField === transactionSortConfig.field;
+
+  transactionSortConfig = {
+    field: selectedField,
+    direction: isCurrentField
+      ? (transactionSortConfig.direction === TRANSACTION_SORT_DIRECTIONS.ASC ? TRANSACTION_SORT_DIRECTIONS.DESC : TRANSACTION_SORT_DIRECTIONS.ASC)
+      : (selectedField === TRANSACTION_SORT_FIELDS.COMPANY ? TRANSACTION_SORT_DIRECTIONS.ASC : TRANSACTION_SORT_DIRECTIONS.DESC)
+  };
+  renderTransactionTable();
 }
 
 function handleTableActionClick(event) {
@@ -274,14 +223,12 @@ function fillEditForm(transactionId) {
   editForm.createdAt.value = transaction.createdAt || new Date().toISOString();
 }
 
-
 function clearEditForm() {
   editForm.reset();
   editForm.transactionId.value = '';
   editForm.createdAt.value = '';
   clearFormValidation(editForm);
 }
-
 
 function handleEditFormSubmit(event) {
   event.preventDefault();
@@ -294,7 +241,7 @@ function handleEditFormSubmit(event) {
     editedTransaction.createdAt = existingTransaction.createdAt || editedTransaction.createdAt;
   }
 
-  if (applyTransactionFormValidation(editForm, editedTransaction, transactions, existingTransactionId)) return;
+  if (validateTransactionFormUi(editForm, editedTransaction, transactions, existingTransactionId, messageBox)) return;
 
   const newTransactions = existingTransactionId
     ? transactions.map(transaction => transaction.id === existingTransactionId ? editedTransaction : transaction)
@@ -329,69 +276,9 @@ function requestDeleteTransaction(transactionId) {
 }
 
 function openImpactDialog(oldTransactions, newTransactions, actionLabel) {
-  const impactPreview = createImpactPreview(oldTransactions, newTransactions);
   pendingTransactionsAfterChange = newTransactions;
   pendingSuccessMessage = `${actionLabel} saved successfully.`;
-
-  impactContent.innerHTML = `
-    <p><strong>${actionLabel} impact preview</strong></p>
-    <ul>
-      <li>Total currently invested: ${formatMoney(impactPreview.oldPortfolio.totalCurrentlyInvested)} → ${formatMoney(impactPreview.newPortfolio.totalCurrentlyInvested)}</li>
-      <li>Change in invested amount: ${formatMoney(impactPreview.totalCurrentlyInvestedChange)}</li>
-      <li>Realized gain/loss: ${formatMoney(impactPreview.oldPortfolio.totalRealizedGainLoss)} → ${formatMoney(impactPreview.newPortfolio.totalRealizedGainLoss)}</li>
-      <li>Change in realized gain/loss: ${formatMoney(impactPreview.realizedGainLossChange)}</li>
-      <li>Total fees: ${formatMoney(impactPreview.oldPortfolio.totalFees)} → ${formatMoney(impactPreview.newPortfolio.totalFees)}</li>
-      <li>Change in total fees: ${formatMoney(impactPreview.totalFeesChange)}</li>
-    </ul>
-    ${renderTickerImpactPreview(impactPreview)}
-    <p>Fee edits are treated as part of the permanent transaction record. A buy fee changes average cost; a sell fee changes realized gain/loss. All later transactions for the same ticker are recalculated before saving.</p>
-  `;
-
-  impactDialog.showModal();
-}
-
-function renderTickerImpactPreview(impactPreview) {
-  const affectedTickers = Array.from(new Set([
-    ...Object.keys(impactPreview.oldPortfolio.holdingsByTicker),
-    ...Object.keys(impactPreview.newPortfolio.holdingsByTicker)
-  ])).filter(ticker => {
-    const oldHolding = impactPreview.oldPortfolio.holdingsByTicker[ticker] || {};
-    const newHolding = impactPreview.newPortfolio.holdingsByTicker[ticker] || {};
-    return oldHolding.averagePrice !== newHolding.averagePrice ||
-      oldHolding.remainingQuantity !== newHolding.remainingQuantity ||
-      oldHolding.realizedGainLoss !== newHolding.realizedGainLoss;
-  });
-
-  if (!affectedTickers.length) return '';
-
-  const rows = affectedTickers.map(ticker => {
-    const oldHolding = impactPreview.oldPortfolio.holdingsByTicker[ticker] || { averagePrice: 0, remainingQuantity: 0, realizedGainLoss: 0 };
-    const newHolding = impactPreview.newPortfolio.holdingsByTicker[ticker] || { averagePrice: 0, remainingQuantity: 0, realizedGainLoss: 0 };
-    return `
-      <tr>
-        <td data-label="Ticker">${ticker}</td>
-        <td data-label="Average price">${formatMoney(oldHolding.averagePrice)} → ${formatMoney(newHolding.averagePrice)}</td>
-        <td data-label="Remaining qty">${formatQuantity(oldHolding.remainingQuantity)} → ${formatQuantity(newHolding.remainingQuantity)}</td>
-        <td data-label="Realized gain/loss">${formatMoney(oldHolding.realizedGainLoss)} → ${formatMoney(newHolding.realizedGainLoss)}</td>
-      </tr>
-    `;
-  }).join('');
-
-  return `
-    <div class="table-scroll-wrapper">
-      <table>
-        <thead>
-          <tr>
-            <th>Ticker</th>
-            <th>Average price</th>
-            <th>Remaining quantity</th>
-            <th>Realized gain/loss</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-  `;
+  renderImpactDialog({ oldTransactions, newTransactions, actionLabel, impactDialog, impactContent });
 }
 
 async function confirmPendingChange() {
@@ -420,9 +307,4 @@ function cancelPendingChange() {
   pendingTransactionsAfterChange = null;
   impactDialog.close();
   showMessage(messageBox, 'Change canceled. Records were not modified.', 'info');
-}
-
-
-function getErrorMessage(error) {
-  return error instanceof Error && error.message ? error.message : 'Unexpected error. Please check the browser console for details.';
 }

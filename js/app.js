@@ -2,15 +2,21 @@ import { TRANSACTION_TYPES, API_STATUS } from './constants.js';
 import { calculatePortfolioFromTransactions, calculatePortfolioWithMarketPrices, createGainLossTimeline } from './calculations.js';
 import { loadInitialTransactions, loadManualCurrentPrices, saveManualCurrentPrice, saveTransactions, exportTransactionsAsJson, importTransactionsFromFile, loadFeeRules, saveFeeRules } from './storage.js';
 import { fetchCurrentMarketPrices } from './marketPriceService.js';
-import { getCurrentUser, sendLoginLink, signOutUser, onAuthStateChange, restoreSavedSession, getRememberedLoginEmail } from './authService.js';
-import { isSupabaseConfigured } from './supabaseClient.js';
-import { createTransactionFromForm, validateTransaction } from './validation.js';
+import { onAuthStateChange, restoreSavedSession, getRememberedLoginEmail } from './authService.js';
+import { createTransactionFromForm } from './validation.js';
 import { drawGainLossChart } from './chart.js';
-import { formatMoney, formatQuantity, getGainLossClass, showMessage, hideMessage, setSelectOptions } from './uiHelpers.js';
+import { formatMoney, formatQuantity, showMessage, hideMessage, setSelectOptions } from './uiHelpers.js';
 import { calculateFeeForTransaction, calculateMinimumBreakEvenSellPrice, getDefaultFeeRules, normalizeBuyFeeRule, normalizeSellFeeRule } from './feeCalculator.js';
+import { findFirstElement, getErrorMessage, getTodayDateString, setButtonProcessing } from './utils/dom.js';
+import { refreshAuthenticationPanel as renderAuthenticationPanel, sendLoginLinkFromForm, signOutAndReloadData } from './ui/authPanel.js';
+import { applyFieldErrors, bindLiveValidationCleanup, clearFormValidation, scrollToFirstInvalidField, setFieldError, validateTransactionFormUi } from './ui/formValidation.js';
+import { renderCompanyList, renderSummary } from './ui/dashboardRenderer.js';
+import { refreshTransactionInputSuggestions } from './ui/inputSuggestions.js';
 
 const transactionForm = document.querySelector('#transactionForm');
 const transactionTypeSelect = document.querySelector('#type');
+const transactionActionLabel = document.querySelector('#transactionActionLabel');
+const transactionSubmitButton = transactionForm?.querySelector('button[type="submit"]');
 const sellTickerSelect = document.querySelector('#sellTickerSelect');
 const messageBox = document.querySelector('#messageBox');
 const companyListElement = document.querySelector('#companyList');
@@ -51,14 +57,6 @@ let latestMarketPriceResults = {};
 let feeRules = getDefaultFeeRules();
 let isAutomaticallyUpdatingTransactionFee = false;
 
-function findFirstElement(selectorList) {
-  for (const selector of selectorList) {
-    const element = document.querySelector(selector);
-    if (element) return element;
-  }
-  return null;
-}
-
 function getMissingFeeRuleInputNames() {
   const missingInputNames = [];
   if (!buyFeeThresholdAmountInput) missingInputNames.push('buy threshold amount');
@@ -72,122 +70,6 @@ function getMissingFeeRuleInputNames() {
 
 function canReadFeeRuleInputs() {
   return getMissingFeeRuleInputNames().length === 0;
-}
-
-
-function setButtonProcessing(buttonElement, isProcessing, processingText = 'Saving...') {
-  if (!buttonElement) return;
-  if (isProcessing) {
-    buttonElement.dataset.originalText = buttonElement.textContent;
-    buttonElement.textContent = processingText;
-    buttonElement.disabled = true;
-    return;
-  }
-  buttonElement.textContent = buttonElement.dataset.originalText || buttonElement.textContent;
-  buttonElement.disabled = false;
-  delete buttonElement.dataset.originalText;
-}
-
-
-function clearFieldError(fieldElement) {
-  if (!fieldElement) return;
-  fieldElement.classList.remove('input-error');
-  fieldElement.removeAttribute('aria-invalid');
-  const labelElement = fieldElement.closest('label');
-  const errorElement = labelElement?.querySelector('.field-error-message');
-  errorElement?.remove();
-}
-
-function setFieldError(fieldElement, message) {
-  if (!fieldElement) return;
-  fieldElement.classList.add('input-error');
-  fieldElement.setAttribute('aria-invalid', 'true');
-  const labelElement = fieldElement.closest('label');
-  if (!labelElement) return;
-  let errorElement = labelElement.querySelector('.field-error-message');
-  if (!errorElement) {
-    errorElement = document.createElement('span');
-    errorElement.className = 'field-error-message';
-    labelElement.appendChild(errorElement);
-  }
-  errorElement.textContent = message;
-}
-
-function clearFormValidation(formElement) {
-  if (!formElement) return;
-  formElement.querySelectorAll('.input-error').forEach(clearFieldError);
-  formElement.querySelectorAll('.field-error-message').forEach(element => element.remove());
-}
-
-function bindLiveValidationCleanup(formElement) {
-  if (!formElement) return;
-  formElement.addEventListener('input', event => {
-    if (event.target.matches('input, select')) clearFieldError(event.target);
-  });
-  formElement.addEventListener('change', event => {
-    if (event.target.matches('input, select')) clearFieldError(event.target);
-  });
-}
-
-function scrollToFirstInvalidField(formElement) {
-  const firstInvalidField = formElement?.querySelector('.input-error');
-  firstInvalidField?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-  firstInvalidField?.focus({ preventScroll: true });
-}
-
-function getRequiredTransactionFieldErrors(formElement) {
-  const fieldErrors = [];
-  const requiredFields = [
-    { field: formElement?.elements.type, message: 'Action is required.' },
-    { field: formElement?.elements.companyName, message: 'Company name is required.' },
-    { field: formElement?.elements.ticker, message: 'Ticker is required.' },
-    { field: formElement?.elements.date, message: 'Date is required.' },
-    { field: formElement?.elements.sharePrice, message: 'Share price must be greater than 0.' },
-    { field: formElement?.elements.quantity, message: 'Quantity must be greater than 0.' },
-    { field: formElement?.elements.transactionFee, message: 'Transaction fee cannot be negative.' }
-  ];
-
-  requiredFields.forEach(({ field, message }) => {
-    if (!field) return;
-    const rawValue = String(field.value || '').trim();
-    if (field.name === 'sharePrice' || field.name === 'quantity') {
-      const numericValue = Number(rawValue);
-      if (!rawValue || !Number.isFinite(numericValue) || numericValue <= 0) fieldErrors.push({ field, message });
-      return;
-    }
-    if (field.name === 'transactionFee') {
-      const numericValue = Number(rawValue || 0);
-      if (!Number.isFinite(numericValue) || numericValue < 0) fieldErrors.push({ field, message });
-      return;
-    }
-    if (!rawValue) fieldErrors.push({ field, message });
-  });
-
-  return fieldErrors;
-}
-
-function applyFieldErrors(formElement, fieldErrors, messageTarget, failurePrefix = 'Save failed') {
-  clearFormValidation(formElement);
-  fieldErrors.forEach(({ field, message }) => setFieldError(field, message));
-  if (fieldErrors.length) {
-    showMessage(messageTarget, `${failurePrefix}. ${fieldErrors.length} field(s) require attention.`, 'error');
-    scrollToFirstInvalidField(formElement);
-    return true;
-  }
-  return false;
-}
-
-function validateTransactionFormUi(formElement, transaction, existingTransactions, transactionIdToIgnore = null, messageTarget = messageBox) {
-  const fieldErrors = getRequiredTransactionFieldErrors(formElement);
-  if (applyFieldErrors(formElement, fieldErrors, messageTarget)) return true;
-
-  const logicalErrors = validateTransaction(transaction, existingTransactions, transactionIdToIgnore);
-  if (logicalErrors.length) {
-    showMessage(messageTarget, logicalErrors.join(' '), 'error');
-    return true;
-  }
-
-  return false;
 }
 
 function getFeeRuleFieldErrors() {
@@ -273,10 +155,10 @@ async function initializeDashboard() {
   renderFeeRuleInputs();
   await restoreSavedSession();
   prefillRememberedEmail();
-  await refreshAuthenticationPanel();
+  await updateAuthenticationPanel();
   onAuthStateChange(async () => {
     try {
-      await refreshAuthenticationPanel();
+      await updateAuthenticationPanel();
       feeRules = await loadFeeRules(getDefaultFeeRules());
       renderFeeRuleInputs();
       updateTransactionFeeFromRule();
@@ -289,6 +171,7 @@ async function initializeDashboard() {
   feeRules = await loadFeeRules(getDefaultFeeRules());
   renderFeeRuleInputs();
   transactions = await loadInitialTransactions();
+  updateTransactionActionUi();
   updateTransactionFeeFromRule();
   await refreshDashboard();
 }
@@ -310,7 +193,7 @@ function bindDashboardEvents() {
   useFeeRuleForTransactionInput?.addEventListener('change', updateTransactionFeeFromRule);
   exportButton.addEventListener('click', () => exportTransactionsAsJson(transactions));
   importInput.addEventListener('change', handleImportTransactions);
-  authForm?.addEventListener('submit', handleLoginSubmit);
+  authForm?.addEventListener('submit', event => sendLoginLinkFromForm(event, authEmailInput, messageBox));
   signOutButton?.addEventListener('click', handleSignOut);
   breakEvenForm?.addEventListener('submit', handleBreakEvenFormSubmit);
   saveFeeRuleButton?.addEventListener('click', handleSaveFeeRules);
@@ -322,50 +205,21 @@ function bindDashboardEvents() {
   resetGainLossRangeButton?.addEventListener('click', handleResetGainLossRange);
 }
 
-async function refreshAuthenticationPanel() {
-  if (!authPanel) return;
 
-  if (!isSupabaseConfigured()) {
-    authStatus.textContent = 'Supabase is not configured yet. The app is using localStorage.';
-    authForm.hidden = true;
-    signOutButton.hidden = true;
-    return;
-  }
-
-  const currentUser = await getCurrentUser();
-  if (currentUser) {
-    authStatus.textContent = `Automatically connected as ${currentUser.email}. Transactions sync to Supabase.`;
-    authForm.hidden = true;
-    signOutButton.hidden = false;
-  } else {
-    authStatus.textContent = 'No saved session found. Enter your email once; future visits will connect automatically on this browser.';
-    authForm.hidden = false;
-    signOutButton.hidden = true;
-  }
-}
-
-async function handleLoginSubmit(event) {
-  event.preventDefault();
-  const email = authEmailInput.value.trim();
-  if (!email) return;
-  try {
-    await sendLoginLink(email);
-    showMessage(messageBox, 'Login link sent. Check your email. After you open the link, this browser will remember your session automatically.', 'success');
-  } catch (error) {
-    showMessage(messageBox, error.message, 'error');
-  }
+async function updateAuthenticationPanel() {
+  await renderAuthenticationPanel({ authPanel, authForm, authStatus, signOutButton });
 }
 
 async function handleSignOut() {
-  try {
-    await signOutUser();
-    transactions = await loadInitialTransactions();
-    await refreshAuthenticationPanel();
-    await refreshDashboard();
-    showMessage(messageBox, 'Signed out successfully.', 'success');
-  } catch (error) {
-    showMessage(messageBox, `Logout failed: ${getErrorMessage(error)}`, 'error');
-  }
+  await signOutAndReloadData({
+    messageBox,
+    loadData: loadInitialTransactions,
+    refreshAuthPanel: updateAuthenticationPanel,
+    afterSignOut: async reloadedTransactions => {
+      transactions = reloadedTransactions;
+      await refreshDashboard();
+    }
+  });
 }
 
 
@@ -377,8 +231,9 @@ async function refreshDashboard() {
   const manualPricesByTicker = loadManualCurrentPrices();
   const portfolio = calculatePortfolioWithMarketPrices(basePortfolio, marketPricesByTicker, manualPricesByTicker);
 
-  renderSummary(portfolio);
-  renderCompanyList(portfolio);
+  renderSummary(portfolio, { totalInvestedElement, totalRealizedElement, totalUnrealizedElement, overallGainLossElement });
+  renderCompanyList(portfolio, companyListElement, handleManualPriceSubmit);
+  refreshTransactionInputSuggestions(transactions, transactionForm);
   const openHoldings = basePortfolio.holdings.filter(holding => holding.remainingQuantity > 0);
   setSelectOptions(sellTickerSelect, openHoldings);
   setSelectOptions(breakEvenTickerSelect, openHoldings);
@@ -431,88 +286,11 @@ function handleResetGainLossRange() {
   renderGainLossChart();
 }
 
-function getTodayDateString() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
 function createMarketPricesMap(priceResultsByTicker) {
   return Object.values(priceResultsByTicker).reduce((result, priceResult) => {
     if (priceResult.status === API_STATUS.READY) result[priceResult.ticker] = priceResult.price;
     return result;
   }, {});
-}
-
-function renderSummary(portfolio) {
-  totalInvestedElement.textContent = formatMoney(portfolio.totalCurrentlyInvested);
-  totalRealizedElement.textContent = formatMoney(portfolio.totalRealizedGainLoss);
-  totalRealizedElement.className = getGainLossClass(portfolio.totalRealizedGainLoss);
-  totalUnrealizedElement.textContent = portfolio.hasMissingUnrealizedValue
-    ? 'API not reachable'
-    : formatMoney(portfolio.totalUnrealizedGainLoss);
-  totalUnrealizedElement.className = portfolio.hasMissingUnrealizedValue ? 'neutral-value' : getGainLossClass(portfolio.totalUnrealizedGainLoss);
-  overallGainLossElement.textContent = portfolio.hasMissingUnrealizedValue
-    ? `${formatMoney(portfolio.overallGainLoss)} + missing live price`
-    : formatMoney(portfolio.overallGainLoss);
-  overallGainLossElement.className = getGainLossClass(portfolio.overallGainLoss);
-}
-
-function renderCompanyList(portfolio) {
-  companyListElement.innerHTML = '';
-
-  if (!portfolio.holdings.length) {
-    companyListElement.innerHTML = '<p class="empty-state">No transactions yet.</p>';
-    return;
-  }
-
-  portfolio.holdings.forEach(holding => {
-    const companyCard = document.createElement('article');
-    companyCard.className = 'company-card';
-
-    const currentPriceText = Number.isFinite(holding.currentMarketPrice)
-      ? formatMoney(holding.currentMarketPrice)
-      : 'API not reachable';
-
-    const relatedTransactions = portfolio.transactionRows.filter(row => row.ticker === holding.ticker);
-    const transactionHistoryHtml = relatedTransactions.map(transaction => `
-      <li>
-        <strong>${transaction.type}</strong> ${transaction.date} — ${formatQuantity(transaction.quantity)} shares @ ${formatMoney(transaction.sharePrice)}, fee ${formatMoney(transaction.transactionFee)}
-      </li>
-    `).join('');
-
-    companyCard.innerHTML = `
-      <div class="company-card-header">
-        <div>
-          <h3>${holding.companyName} (${holding.ticker})</h3>
-          <p>Remaining shares: <strong>${formatQuantity(holding.remainingQuantity)}</strong></p>
-        </div>
-        <span class="${getGainLossClass(holding.realizedGainLoss + (holding.unrealizedGainLoss || 0))}">
-          ${formatMoney(holding.realizedGainLoss + (holding.unrealizedGainLoss || 0))}
-        </span>
-      </div>
-      <div class="company-metrics">
-        <span>Average price: ${formatMoney(holding.averagePrice)}</span>
-        <span>Current price: ${currentPriceText}</span>
-        <span>Realized: <b class="${getGainLossClass(holding.realizedGainLoss)}">${formatMoney(holding.realizedGainLoss)}</b></span>
-        <span>Unrealized: <b class="${getGainLossClass(holding.unrealizedGainLoss)}">${formatMoney(holding.unrealizedGainLoss)}</b></span>
-      </div>
-      <details>
-        <summary>Transaction history</summary>
-        <ul class="transaction-history">${transactionHistoryHtml}</ul>
-      </details>
-      <form class="manual-price-form" data-ticker="${holding.ticker}">
-        <label>Manual current price fallback</label>
-        <input type="number" step="0.000001" min="0" name="manualPrice" placeholder="Manual price">
-        <button type="submit">Save manual price</button>
-      </form>
-    `;
-
-    companyCard.querySelector('.manual-price-form').addEventListener('submit', handleManualPriceSubmit);
-    companyListElement.appendChild(companyCard);
-  });
 }
 
 
@@ -684,8 +462,27 @@ function renderBreakEvenSuccess(holding, quantityToSell, breakEvenResult) {
 function handleTransactionTypeChange() {
   const isSell = transactionTypeSelect.value === TRANSACTION_TYPES.SELL;
   document.querySelector('#sellSelectorWrapper').hidden = !isSell;
+  updateTransactionActionUi();
   updateTransactionFeeFromRule();
 }
+
+function updateTransactionActionUi() {
+  if (!transactionTypeSelect) return;
+
+  const isSell = transactionTypeSelect.value === TRANSACTION_TYPES.SELL;
+  const actionClass = isSell ? 'transaction-action-sell' : 'transaction-action-buy';
+  const inactiveClass = isSell ? 'transaction-action-buy' : 'transaction-action-sell';
+
+  transactionTypeSelect.classList.remove(inactiveClass);
+  transactionTypeSelect.classList.add(actionClass);
+  transactionActionLabel?.classList.remove(inactiveClass);
+  transactionActionLabel?.classList.add(actionClass);
+
+  if (transactionSubmitButton && !transactionSubmitButton.disabled) {
+    transactionSubmitButton.textContent = isSell ? 'Add Sell Transaction' : 'Add Buy Transaction';
+  }
+}
+
 
 function handleSellTickerSelection() {
   const selectedTicker = sellTickerSelect.value;
@@ -713,16 +510,19 @@ async function handleTransactionFormSubmit(event) {
     transactionForm.reset();
     clearFormValidation(transactionForm);
     if (useFeeRuleForTransactionInput) useFeeRuleForTransactionInput.checked = true;
+    updateTransactionActionUi();
     updateTransactionFeeFromRule();
     showMessage(messageBox, 'Transaction saved successfully. The fee value was stored permanently in this transaction.', 'success');
   } catch (error) {
     transactionForm.reset();
     clearFormValidation(transactionForm);
     if (useFeeRuleForTransactionInput) useFeeRuleForTransactionInput.checked = true;
+    updateTransactionActionUi();
     updateTransactionFeeFromRule();
     showMessage(messageBox, 'Saved locally, but Supabase sync failed. Check your Supabase setup or connection.', 'error');
   } finally {
     setButtonProcessing(submitButton, false);
+    updateTransactionActionUi();
   }
   await refreshDashboard();
 }
@@ -760,8 +560,4 @@ async function handleImportTransactions(event) {
   } finally {
     event.target.value = '';
   }
-}
-
-function getErrorMessage(error) {
-  return error instanceof Error && error.message ? error.message : 'Unexpected error. Please check the browser console for details.';
 }
