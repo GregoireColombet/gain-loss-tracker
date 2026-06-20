@@ -1260,3 +1260,149 @@ button:disabled,
   opacity: 0.65;
   transform: none;
 }
+
+.transaction-sort-toolbar {
+  align-items: end;
+  background: rgba(248, 250, 252, 0.72);
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(180px, 240px) minmax(180px, 240px);
+  margin-bottom: 10px;
+  padding: 14px;
+}
+
+.transaction-sort-toolbar label {
+  color: var(--muted-text-color);
+  display: grid;
+  font-size: 0.9rem;
+  font-weight: 700;
+  gap: 6px;
+}
+
+.transaction-sort-toolbar select {
+  min-height: 44px;
+}
+
+.sort-status {
+  color: var(--muted-text-color);
+  font-size: 0.9rem;
+  margin: 0 0 14px;
+}
+
+.column-sort-button {
+  background: transparent;
+  border-radius: 10px;
+  box-shadow: none;
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+  justify-content: flex-start;
+  letter-spacing: inherit;
+  min-height: auto;
+  padding: 0;
+  text-transform: inherit;
+}
+
+.column-sort-button:hover {
+  background: transparent;
+  box-shadow: none;
+  color: var(--primary-color);
+  transform: none;
+}
+
+.sort-indicator {
+  color: var(--primary-color);
+  display: inline-block;
+  font-weight: 900;
+  margin-left: 6px;
+  min-width: 28px;
+  text-align: left;
+}
+
+.transaction-type-badge {
+  border-radius: 999px;
+  color: #ffffff;
+  display: inline-block;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  min-width: 58px;
+  padding: 4px 10px;
+  text-align: center;
+}
+
+.transaction-type-badge.buy {
+  background: var(--success-color);
+}
+
+.transaction-type-badge.sell {
+  background: var(--danger-color);
+}
+
+@media (max-width: 720px) {
+  .transaction-sort-toolbar {
+    grid-template-columns: 1fr;
+    margin-bottom: 8px;
+    padding: 12px;
+  }
+
+  .sort-status {
+    margin-bottom: 10px;
+  }
+}
+
+.transaction-action-field {
+  border: 1px solid transparent;
+  border-radius: 18px;
+  padding: 10px;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+
+.transaction-action-field.transaction-action-buy {
+  background: rgba(22, 163, 74, 0.08);
+  border-color: rgba(22, 163, 74, 0.26);
+}
+
+.transaction-action-field.transaction-action-sell {
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.26);
+}
+
+#type.transaction-action-buy,
+#type.transaction-action-sell {
+  color: #ffffff;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+#type.transaction-action-buy {
+  background: linear-gradient(135deg, var(--success-color), #15803d);
+  border-color: var(--success-color);
+  box-shadow: 0 10px 22px rgba(22, 163, 74, 0.2);
+}
+
+#type.transaction-action-buy:focus {
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.18), 0 10px 22px rgba(22, 163, 74, 0.2);
+}
+
+#type.transaction-action-sell {
+  background: linear-gradient(135deg, var(--danger-color), #b91c1c);
+  border-color: var(--danger-color);
+  box-shadow: 0 10px 22px rgba(220, 38, 38, 0.18);
+}
+
+#type.transaction-action-sell:focus {
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.18), 0 10px 22px rgba(220, 38, 38, 0.18);
+}
+
+#transactionForm:has(#type.transaction-action-buy) .form-actions button[type="submit"] {
+  background: linear-gradient(135deg, var(--success-color), #15803d);
+  box-shadow: 0 12px 24px rgba(22, 163, 74, 0.2);
+}
+
+#transactionForm:has(#type.transaction-action-sell) .form-actions button[type="submit"] {
+  background: linear-gradient(135deg, var(--danger-color), #b91c1c);
+  box-shadow: 0 12px 24px rgba(220, 38, 38, 0.18);
+}
