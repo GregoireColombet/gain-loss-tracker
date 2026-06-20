@@ -11,6 +11,8 @@ import {
 import { validateTransactionSet } from '../js/validation.js';
 import { calculateFeeForTransaction, calculateMinimumBreakEvenSellPrice, calculateSellFee, normalizeBuyFeeRule, normalizeSellFeeRule } from '../js/feeCalculator.js';
 import { formatGraphDisplayValue } from '../js/chart.js';
+import { calculateAmountPlacedInCompany, sortHoldingsForCompanyList } from '../js/ui/dashboardRenderer.js';
+import { TRANSACTION_SORT_DIRECTIONS, TRANSACTION_SORT_FIELDS, sortTransactionRows } from '../js/ui/editTransactionTable.js';
 
 const transactions = JSON.parse(await readFile(new URL('../data/test-transactions.json', import.meta.url), 'utf8'));
 
@@ -34,6 +36,13 @@ nearlyEqual(xyz.realizedGainLoss, 9.333333333333332, 'XYZ realized gain/loss inc
 
 nearlyEqual(portfolio.totalCurrentlyInvested, 781.5833333333334, 'total currently invested including buy fees in cost basis');
 nearlyEqual(portfolio.totalRealizedGainLoss, 131.08333333333331, 'total realized gain/loss including fees');
+
+
+nearlyEqual(
+  calculateAmountPlacedInCompany({ averagePrice: abc.averagePrice, remainingQuantity: abc.remainingQuantity }),
+  600.75,
+  'dashboard open company amount placed should use remaining cost basis including buy fees'
+);
 
 const marketPortfolio = calculatePortfolioWithMarketPrices(portfolio, { ABC: 220 }, { XYZ: 50 });
 nearlyEqual(marketPortfolio.totalUnrealizedGainLoss, 78.41666666666666, 'total unrealized gain/loss using live ABC and manual XYZ');
@@ -78,12 +87,40 @@ assert.ok(validateTransactionSet(invalidFutureBuyDataset).length > 0, 'invalid f
 const invalidDeletionDataset = transactions.filter(transaction => transaction.id !== 'tx_abc_001');
 assert.ok(validateTransactionSet(invalidDeletionDataset).length > 0, 'deleting an early buy should be blocked if later sells exceed available shares');
 
+
+const sortedCompanyListHoldings = sortHoldingsForCompanyList([
+  { companyName: 'Zulu Closed', ticker: 'ZC', remainingQuantity: 0 },
+  { companyName: 'beta Open', ticker: 'BO', remainingQuantity: 5 },
+  { companyName: 'Alpha Closed', ticker: 'AC', remainingQuantity: 0 },
+  { companyName: 'Alpha Open', ticker: 'AO', remainingQuantity: 2 }
+]);
+assert.deepEqual(
+  sortedCompanyListHoldings.map(holding => holding.companyName),
+  ['Alpha Open', 'beta Open', 'Alpha Closed', 'Zulu Closed'],
+  'dashboard company list should show open holdings alphabetically, then closed holdings alphabetically'
+);
+
 const sameDateSorted = sortTransactionsByDate([
   { id: 'b', date: '2024-01-01', createdAt: '2024-01-01T10:00:00Z' },
   { id: 'a', date: '2024-01-01', createdAt: '2024-01-01T09:00:00Z' }
 ]);
 assert.deepEqual(sameDateSorted.map(transaction => transaction.id), ['a', 'b'], 'same-date transactions should sort by createdAt');
 
+
+
+const displaySortedByNewest = sortTransactionRows([
+  { id: 'old', date: '2024-01-01', createdAt: '2024-01-01T09:00:00Z', companyName: 'Beta' },
+  { id: 'new', date: '2024-01-03', createdAt: '2024-01-03T09:00:00Z', companyName: 'Alpha' },
+  { id: 'middle', date: '2024-01-02', createdAt: '2024-01-02T09:00:00Z', companyName: 'Zeta' }
+], { field: TRANSACTION_SORT_FIELDS.DATE, direction: TRANSACTION_SORT_DIRECTIONS.DESC });
+assert.deepEqual(displaySortedByNewest.map(transaction => transaction.id), ['new', 'middle', 'old'], 'transaction history should support date newest-first sorting');
+
+const displaySortedByCompany = sortTransactionRows([
+  { id: 'zeta', date: '2024-01-01', createdAt: '2024-01-01T09:00:00Z', companyName: 'Zeta' },
+  { id: 'alpha-later', date: '2024-01-03', createdAt: '2024-01-03T09:00:00Z', companyName: 'Alpha' },
+  { id: 'alpha-earlier', date: '2024-01-02', createdAt: '2024-01-02T09:00:00Z', companyName: 'Alpha' }
+], { field: TRANSACTION_SORT_FIELDS.COMPANY, direction: TRANSACTION_SORT_DIRECTIONS.ASC });
+assert.deepEqual(displaySortedByCompany.map(transaction => transaction.id), ['alpha-earlier', 'alpha-later', 'zeta'], 'transaction history should support company A-Z sorting with date tie-breakers');
 
 const flatBreakEven = calculateMinimumBreakEvenSellPrice(10, 10, {
   thresholdAmount: 200,
@@ -139,5 +176,5 @@ nearlyEqual(calculateFeeForTransaction('SELL', 200, 10, separatedFeeRules), 20, 
 const invalidRangeTimeline = createGainLossTimeline(transactions, { period: 'day', startDate: '2024-03-01', endDate: '2024-01-01' });
 assert.equal(invalidRangeTimeline.length, 0, 'invalid date ranges should draw an empty chart instead of crashing');
 
-console.log('All portfolio calculation, propagation, validation, API-failure, sort, chart range grouping, graph display-unit, default transaction fee-rule, and break-even fee tests passed.');
+console.log('All portfolio calculation, propagation, validation, API-failure, dashboard company-list sort, transaction history sort, sort, chart range grouping, graph display-unit, default transaction fee-rule, and break-even fee tests passed.');
 
