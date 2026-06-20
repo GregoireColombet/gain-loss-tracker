@@ -93,14 +93,31 @@
           <p>Select any transaction to modify it. Delete requires confirmation.</p>
         </div>
       </div>
+      <div class="transaction-sort-toolbar" aria-label="Transaction history sorting controls">
+        <label>
+          Sort by
+          <select id="transactionSortField">
+            <option value="date">Date</option>
+            <option value="companyName">Company</option>
+          </select>
+        </label>
+        <label>
+          Order
+          <select id="transactionSortDirection">
+            <option value="desc">Newest first</option>
+            <option value="asc">Oldest first</option>
+          </select>
+        </label>
+      </div>
+      <p id="transactionSortStatus" class="sort-status" aria-live="polite">Sorted by Date, Newest first.</p>
       <div class="table-scroll-wrapper">
         <table>
           <thead>
             <tr>
-              <th>Date</th>
-              <th>Type</th>
-              <th>Company</th>
-              <th>Ticker</th>
+              <th scope="col" aria-sort="descending"><button type="button" class="column-sort-button" data-sort-field="date">Date <span class="sort-indicator" aria-hidden="true">↓</span></button></th>
+              <th scope="col">Type</th>
+              <th scope="col" aria-sort="none"><button type="button" class="column-sort-button" data-sort-field="companyName">Company <span class="sort-indicator" aria-hidden="true">↕</span></button></th>
+              <th scope="col">Ticker</th>
               <th>Price</th>
               <th>Quantity</th>
               <th>Fee</th>
