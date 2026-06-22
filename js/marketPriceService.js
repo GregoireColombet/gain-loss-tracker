@@ -4,6 +4,8 @@ import { supabaseClient, isSupabaseConfigured } from './supabaseClient.js';
 // Supabase Edge Function used to fetch current prices from Finnhub.
 // The Finnhub API key should be stored as a Supabase secret named FINNHUB_API_KEY.
 const STOCK_PRICE_FUNCTION_NAME = 'get-stock-price';
+const MARKET_PRICE_CACHE_KEY = 'stockTrackerLastMarketPrices';
+const MARKET_PRICE_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 
 function normalizeTicker(ticker) {
   return String(ticker || '').trim().toUpperCase();
@@ -14,6 +16,15 @@ function buildUnavailablePriceResult(ticker, source) {
     ticker,
     status: API_STATUS.NOT_REACHABLE,
     price: null,
+    source
+  };
+}
+
+function buildReadyPriceResult(ticker, price, source) {
+  return {
+    ticker,
+    status: API_STATUS.READY,
+    price,
     source
   };
 }
@@ -32,6 +43,62 @@ function normalizePriceResponse(data) {
   return price;
 }
 
+function loadCachedMarketPrices() {
+  try {
+    const storedCache = localStorage.getItem(MARKET_PRICE_CACHE_KEY);
+    if (!storedCache) return {};
+
+    const parsedCache = JSON.parse(storedCache);
+    return parsedCache && typeof parsedCache === 'object' ? parsedCache : {};
+  } catch (error) {
+    console.warn('Unable to read cached market prices.', error);
+    return {};
+  }
+}
+
+function saveCachedMarketPrice(ticker, price) {
+  if (!Number.isFinite(price) || price <= 0) return;
+
+  const cachedPrices = loadCachedMarketPrices();
+  cachedPrices[ticker] = {
+    price,
+    savedAt: new Date().toISOString()
+  };
+
+  localStorage.setItem(MARKET_PRICE_CACHE_KEY, JSON.stringify(cachedPrices));
+}
+
+function getRecentCachedMarketPrice(ticker) {
+  const cachedPrice = loadCachedMarketPrices()[ticker];
+  const price = Number(cachedPrice?.price);
+  const savedAtTime = Date.parse(cachedPrice?.savedAt || '');
+
+  if (!Number.isFinite(price) || price <= 0 || !Number.isFinite(savedAtTime)) {
+    return null;
+  }
+
+  const cacheAge = Date.now() - savedAtTime;
+  if (cacheAge > MARKET_PRICE_CACHE_MAX_AGE_MS) {
+    return null;
+  }
+
+  return price;
+}
+
+function buildCachedFallbackResult(ticker, reason) {
+  const cachedPrice = getRecentCachedMarketPrice(ticker);
+
+  if (!Number.isFinite(cachedPrice)) {
+    return buildUnavailablePriceResult(ticker, reason);
+  }
+
+  return buildReadyPriceResult(
+    ticker,
+    cachedPrice,
+    `${reason}; using last cached price`
+  );
+}
+
 export async function fetchCurrentMarketPrice(ticker) {
   const normalizedTicker = normalizeTicker(ticker);
 
@@ -40,7 +107,7 @@ export async function fetchCurrentMarketPrice(ticker) {
   }
 
   if (!isSupabaseConfigured() || !supabaseClient) {
-    return buildUnavailablePriceResult(
+    return buildCachedFallbackResult(
       normalizedTicker,
       'Supabase is not configured for live market prices'
     );
@@ -60,16 +127,16 @@ export async function fetchCurrentMarketPrice(ticker) {
     }
 
     const marketPrice = normalizePriceResponse(data);
+    saveCachedMarketPrice(normalizedTicker, marketPrice);
 
-    return {
-      ticker: normalizedTicker,
-      status: API_STATUS.READY,
-      price: marketPrice,
-      source: 'Supabase Edge Function: get-stock-price'
-    };
+    return buildReadyPriceResult(
+      normalizedTicker,
+      marketPrice,
+      'Supabase Edge Function: get-stock-price'
+    );
   } catch (error) {
     console.warn(`Market price API not reachable for ${normalizedTicker}.`, error);
-    return buildUnavailablePriceResult(
+    return buildCachedFallbackResult(
       normalizedTicker,
       'Supabase Edge Function not reachable'
     );

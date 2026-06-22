@@ -16,6 +16,10 @@ export function renderSummary(portfolio, elements) {
 }
 
 
+function getTransactionFeeAmount(transaction) {
+  return Number(transaction.transactionFee ?? transaction.transaction_fee ?? transaction.fee ?? 0);
+}
+
 export function calculateTotalTransactionFees(transactions, dateRange = {}) {
   const startDate = dateRange.startDate || '';
   const endDate = dateRange.endDate || '';
@@ -26,7 +30,7 @@ export function calculateTotalTransactionFees(transactions, dateRange = {}) {
       if (endDate && transaction.date > endDate) return false;
       return true;
     })
-    .reduce((totalFees, transaction) => totalFees + Number(transaction.transactionFee || 0), 0);
+    .reduce((totalFees, transaction) => totalFees + getTransactionFeeAmount(transaction), 0);
 }
 
 export function renderCompanyFeeSummary(transactions, elements, dateRange = {}) {
@@ -71,10 +75,12 @@ export function calculateAmountPlacedInCompany(holding) {
   return holding.averagePrice * holding.remainingQuantity;
 }
 
-function createAmountPlacedMetric(holding) {
-  if (holding.remainingQuantity <= 0) return '';
+function createAmountPlacedText(holding) {
+  const amountPlaced = calculateAmountPlacedInCompany(holding);
 
-  return `<span>Amount placed: ${formatMoney(calculateAmountPlacedInCompany(holding))}</span>`;
+  if (holding.remainingQuantity <= 0 || amountPlaced === 0) return '';
+
+  return ` <span class="amount-placed-value">${formatMoney(amountPlaced)} placed</span>`;
 }
 
 export function renderCompanyList(portfolio, companyListElement, onManualPriceSubmit) {
@@ -98,7 +104,7 @@ export function renderCompanyList(portfolio, companyListElement, onManualPriceSu
     const relatedTransactions = portfolio.transactionRows.filter(row => row.ticker === holding.ticker);
     const transactionHistoryHtml = relatedTransactions.map(transaction => `
       <li>
-        <strong>${transaction.type}</strong> ${transaction.date} — ${formatQuantity(transaction.quantity)} shares @ ${formatMoney(transaction.sharePrice)}, fee ${formatMoney(transaction.transactionFee)}
+        <strong>${transaction.type}</strong> ${transaction.date} — ${formatQuantity(transaction.quantity)} shares @ ${formatMoney(transaction.sharePrice)}, fee ${formatMoney(getTransactionFeeAmount(transaction))}
       </li>
     `).join('');
 
@@ -106,14 +112,13 @@ export function renderCompanyList(portfolio, companyListElement, onManualPriceSu
       <div class="company-card-header">
         <div>
           <h3>${holding.companyName} (${holding.ticker})</h3>
-          <p>Remaining shares: <strong>${formatQuantity(holding.remainingQuantity)}</strong></p>
+          <p>Remaining shares: <strong>${formatQuantity(holding.remainingQuantity)}</strong>${createAmountPlacedText(holding)}</p>
         </div>
         <span class="${getGainLossClass(holding.realizedGainLoss + (holding.unrealizedGainLoss || 0))}">
           ${formatMoney(holding.realizedGainLoss + (holding.unrealizedGainLoss || 0))}
         </span>
       </div>
       <div class="company-metrics">
-        ${createAmountPlacedMetric(holding)}
         <span>Average price: ${formatMoney(holding.averagePrice)}</span>
         <span>Current price: ${currentPriceText}</span>
         <span>Realized: <b class="${getGainLossClass(holding.realizedGainLoss)}">${formatMoney(holding.realizedGainLoss)}</b></span>

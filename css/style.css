@@ -1499,3 +1499,9 @@ button:disabled,
     grid-template-columns: 1fr;
   }
 }
+
+.amount-placed-value {
+  color: #dc2626;
+  font-weight: 700;
+  margin-left: 0.35rem;
+}
