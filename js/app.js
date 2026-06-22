@@ -64,10 +64,6 @@ let feeRules = getDefaultFeeRules();
 
 const DEFAULT_COMPANY_FEE_START_DATE = '2026-01-01';
 
-function getTodayDateString() {
-  return new Date().toISOString().slice(0, 10);
-}
-
 function setDefaultCompanyFeeDateRange() {
   if (companyFeeStartDateInput && !companyFeeStartDateInput.value) {
     companyFeeStartDateInput.value = DEFAULT_COMPANY_FEE_START_DATE;
