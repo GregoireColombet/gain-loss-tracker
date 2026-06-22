@@ -2117,3 +2117,40 @@ button:disabled,
     flex: 0 0 auto;
   }
 }
+
+
+.price-source-badge {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 6px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  vertical-align: middle;
+}
+
+.price-source-live {
+  color: #166534;
+  background: #dcfce7;
+  border: 1px solid #86efac;
+}
+
+.price-source-cache {
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fbbf24;
+}
+
+.price-source-manual {
+  color: #1d4ed8;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+}
+
+.price-source-error {
+  color: #991b1b;
+  background: #fee2e2;
+  border: 1px solid #fecaca;
+}

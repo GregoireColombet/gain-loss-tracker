@@ -9,6 +9,7 @@ const STOCK_PRICE_FUNCTION_URL = `${SUPABASE_URL.replace(/\/$/, '')}/functions/v
 const MARKET_PRICE_CACHE_KEY = 'stockTrackerLastMarketPrices';
 const MARKET_PRICE_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const MARKET_PRICE_FUNCTION_DISABLED_KEY = 'stockTrackerStockPriceFunctionDisabled';
+const MARKET_PRICE_FUNCTION_DISABLED_TTL_MS = 5 * 60 * 1000;
 
 function normalizeTicker(ticker) {
   return String(ticker || '').trim().toUpperCase();
@@ -49,7 +50,20 @@ function normalizePriceResponse(data) {
 function isStockPriceFunctionTemporarilyDisabled() {
   try {
     const storedStatus = JSON.parse(localStorage.getItem(MARKET_PRICE_FUNCTION_DISABLED_KEY) || 'null');
-    return storedStatus?.functionName === STOCK_PRICE_FUNCTION_NAME && storedStatus?.disabled === true;
+    if (storedStatus?.functionName !== STOCK_PRICE_FUNCTION_NAME || storedStatus?.disabled !== true) {
+      return false;
+    }
+
+    // Do not permanently lock the app into cache-only mode. A missing Edge Function
+    // can be deployed after the user first opens the app, so retry live API calls
+    // after a short cooldown instead of relying on cached prices forever.
+    const disabledAtTime = Date.parse(storedStatus.disabledAt || '');
+    if (!Number.isFinite(disabledAtTime) || Date.now() - disabledAtTime > MARKET_PRICE_FUNCTION_DISABLED_TTL_MS) {
+      enableStockPriceFunction();
+      return false;
+    }
+
+    return true;
   } catch (error) {
     console.warn('Unable to read market price function status.', error);
     return false;

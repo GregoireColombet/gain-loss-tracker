@@ -75,6 +75,27 @@ export function calculateAmountPlacedInCompany(holding) {
   return holding.averagePrice * holding.remainingQuantity;
 }
 
+
+function getMarketPriceSourceBadge(holding) {
+  if (!Number.isFinite(holding.currentMarketPrice)) {
+    return '<span class="price-source-badge price-source-error">No price</span>';
+  }
+
+  if (holding.isLiveApiMarketPrice) {
+    return '<span class="price-source-badge price-source-live">Live API</span>';
+  }
+
+  if (holding.isCachedMarketPrice) {
+    return '<span class="price-source-badge price-source-cache">Cached</span>';
+  }
+
+  return '<span class="price-source-badge price-source-manual">Manual</span>';
+}
+
+function getMarketPriceSourceTitle(holding) {
+  return holding.marketPriceSource ? ` title="${holding.marketPriceSource.replace(/"/g, '&quot;')}"` : '';
+}
+
 function createAmountPlacedText(holding) {
   const amountPlaced = calculateAmountPlacedInCompany(holding);
 
@@ -120,7 +141,7 @@ export function renderCompanyList(portfolio, companyListElement, onManualPriceSu
       </div>
       <div class="company-metrics">
         <span>Average price: ${formatMoney(holding.averagePrice)}</span>
-        <span>Current price: ${currentPriceText}</span>
+        <span${getMarketPriceSourceTitle(holding)}>Current price: ${currentPriceText} ${getMarketPriceSourceBadge(holding)}</span>
         <span>Realized: <b class="${getGainLossClass(holding.realizedGainLoss)}">${formatMoney(holding.realizedGainLoss)}</b></span>
         <span>Unrealized: <b class="${getGainLossClass(holding.unrealizedGainLoss)}">${formatMoney(holding.unrealizedGainLoss)}</b></span>
       </div>

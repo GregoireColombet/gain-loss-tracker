@@ -140,7 +140,7 @@ export function findSellQuantityViolations(transactions) {
   return violations;
 }
 
-export function calculatePortfolioWithMarketPrices(portfolio, marketPricesByTicker, manualPricesByTicker = {}) {
+export function calculatePortfolioWithMarketPrices(portfolio, marketPricesByTicker, manualPricesByTicker = {}, marketPriceResultsByTicker = {}) {
   let totalUnrealizedGainLoss = 0;
   let hasMissingUnrealizedValue = false;
 
@@ -148,6 +148,14 @@ export function calculatePortfolioWithMarketPrices(portfolio, marketPricesByTick
     const liveMarketPrice = marketPricesByTicker[holding.ticker];
     const manualMarketPrice = manualPricesByTicker[holding.ticker];
     const selectedMarketPrice = Number.isFinite(liveMarketPrice) ? liveMarketPrice : manualMarketPrice;
+    const marketPriceResult = marketPriceResultsByTicker[holding.ticker];
+    const marketPriceSource = Number.isFinite(liveMarketPrice)
+      ? marketPriceResult?.source || 'Live market price API'
+      : Number.isFinite(manualMarketPrice)
+        ? 'Manual fallback price'
+        : 'No market price available';
+    const isCachedMarketPrice = /cached/i.test(marketPriceSource);
+    const isLiveApiMarketPrice = Number.isFinite(liveMarketPrice) && !isCachedMarketPrice;
     const unrealizedGainLoss = calculateUnrealizedGainLoss(
       selectedMarketPrice,
       holding.averagePrice,
@@ -165,6 +173,9 @@ export function calculatePortfolioWithMarketPrices(portfolio, marketPricesByTick
       currentMarketPrice: selectedMarketPrice,
       liveMarketPrice,
       manualMarketPrice,
+      marketPriceSource,
+      isCachedMarketPrice,
+      isLiveApiMarketPrice,
       unrealizedGainLoss
     };
   });

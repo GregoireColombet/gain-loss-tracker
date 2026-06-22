@@ -281,7 +281,7 @@ async function refreshDashboard() {
   latestMarketPriceResults = marketPriceResults;
   const marketPricesByTicker = createMarketPricesMap(latestMarketPriceResults);
   const manualPricesByTicker = loadManualCurrentPrices();
-  const portfolio = calculatePortfolioWithMarketPrices(basePortfolio, marketPricesByTicker, manualPricesByTicker);
+  const portfolio = calculatePortfolioWithMarketPrices(basePortfolio, marketPricesByTicker, manualPricesByTicker, latestMarketPriceResults);
 
   renderSummary(portfolio, { totalInvestedElement, totalRealizedElement, totalUnrealizedElement, overallGainLossElement });
   refreshCompanyFeeSummary();
