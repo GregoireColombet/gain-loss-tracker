@@ -20,9 +20,10 @@ export async function generateCompanyAnalysis(promptId, parameters = {}) {
   if (!promptDefinition) throw new Error('Selected analysis prompt was not found.');
   const promptTemplate = await loadPromptTemplate(promptDefinition);
   const promptText = renderPromptTemplate(promptTemplate, parameters);
+  const generationConfig = promptDefinition.generationConfig;
 
   try {
-    const data = await invokeAnalysisFunctionWithRetry({ promptId, promptText, parameters });
+    const data = await invokeAnalysisFunctionWithRetry({ promptId, promptText, parameters, generationConfig });
     const result = data?.result || data?.analysis || data?.text || '';
 
     if (!String(result).trim()) {
@@ -37,6 +38,7 @@ export async function generateCompanyAnalysis(promptId, parameters = {}) {
       promptId,
       promptTitle: promptDefinition.title,
       parameters,
+      generationConfig,
       resultMarkdown: result,
       status: 'completed'
     });
@@ -49,6 +51,7 @@ export async function generateCompanyAnalysis(promptId, parameters = {}) {
       promptId,
       promptTitle: promptDefinition.title,
       parameters,
+      generationConfig,
       resultMarkdown: '',
       status: 'failed',
       errorCode: analysisError.status || analysisError.code || 'UNKNOWN',
@@ -127,7 +130,7 @@ async function readJsonResponse(response) {
   }
 }
 
-function createAnalysisReport({ promptId, promptTitle, parameters = {}, resultMarkdown = '', status = 'completed', errorCode = '', errorMessage = '' }) {
+function createAnalysisReport({ promptId, promptTitle, parameters = {}, generationConfig = null, resultMarkdown = '', status = 'completed', errorCode = '', errorMessage = '' }) {
   return {
     id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
     promptId,
@@ -135,6 +138,7 @@ function createAnalysisReport({ promptId, promptTitle, parameters = {}, resultMa
     ticker: parameters.ticker || '',
     companyName: parameters.companyName || '',
     parameters,
+    generationConfig,
     resultMarkdown,
     status,
     errorCode: String(errorCode || ''),
@@ -187,6 +191,7 @@ function buildSupabaseAnalysisReportPayload(report, userId) {
     company_name: report.companyName,
     prompt_id: report.promptId,
     parameters: report.parameters,
+    generation_config: report.generationConfig || null,
     result_markdown: report.resultMarkdown || '',
     status: report.status || 'completed',
     error_code: report.errorCode || null,
@@ -207,7 +212,8 @@ async function saveAnalysisReportUsingLegacyColumns(report, userId) {
         ...(report.parameters || {}),
         analysisStatus: report.status || 'completed',
         analysisErrorCode: report.errorCode || '',
-        analysisErrorMessage: report.errorMessage || ''
+        analysisErrorMessage: report.errorMessage || '',
+        generationConfig: report.generationConfig || null
       },
       result_markdown: report.resultMarkdown || '',
       created_at: report.createdAt
@@ -328,7 +334,7 @@ function deleteLocalAnalysisReport(reportId) {
 async function selectSupabaseAnalysisReports(userId) {
   const extendedResult = await supabaseClient
     .from('analysis_reports')
-    .select('id, user_id, ticker, company_name, prompt_id, parameters, result_markdown, status, error_code, error_message, created_at')
+    .select('id, user_id, ticker, company_name, prompt_id, parameters, generation_config, result_markdown, status, error_code, error_message, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
@@ -359,6 +365,7 @@ function mapSupabaseAnalysisReport(row, promptMap = new Map()) {
     ticker: row.ticker || row.parameters?.ticker || '',
     companyName: row.company_name || row.parameters?.companyName || '',
     parameters: row.parameters || {},
+    generationConfig: row.generation_config || row.parameters?.generationConfig || null,
     resultMarkdown: row.result_markdown || '',
     status: row.status || row.parameters?.analysisStatus || 'completed',
     errorCode: row.error_code || row.parameters?.analysisErrorCode || '',

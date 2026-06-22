@@ -21,22 +21,18 @@
 
   <main class="layout-container">
 
-    <section id="authPanel" class="panel auth-panel">
-      <div class="section-header">
-        <div>
-          <h2>Supabase sync</h2>
-          <p id="authStatus">Checking sync status...</p>
-        </div>
-        <button id="signOutButton" type="button" class="secondary-button" hidden>Sign out</button>
+    <div id="authPanel" class="sync-bar sync-bar--checking" role="status" aria-live="polite">
+      <div class="sync-status-row">
+        <span class="sync-status-dot" aria-hidden="true"></span>
+        <span id="authStatus" class="sync-status-text">Checking sync status...</span>
       </div>
-      <form id="authForm" class="auth-form" hidden novalidate>
-        <label>
-          Email
-          <input id="authEmail" type="email" placeholder="you@example.com" required>
-        </label>
-        <button type="submit">Send login link</button>
+      <form id="authForm" class="sync-form" hidden novalidate>
+        <label class="visually-hidden" for="authEmail">Email</label>
+        <input id="authEmail" type="email" placeholder="you@example.com" autocomplete="email" required>
+        <button type="submit" class="sync-action-button">Send link</button>
       </form>
-    </section>
+      <button id="signOutButton" type="button" class="sync-action-button sync-logout-button" hidden>Logout</button>
+    </div>
 
     <div id="messageBox" class="message-box" hidden></div>
 
@@ -147,6 +143,32 @@
           Prompt text
           <textarea id="promptEditorText" rows="12" placeholder="Write your reusable prompt. Use placeholders like {{ticker}}, {{companyName}}, or {{riskTolerance}}." required></textarea>
         </label>
+
+        <div class="generation-settings-editor">
+          <div class="section-header compact-section-header">
+            <div>
+              <h3>Generation settings</h3>
+              <p>These settings control Gemini output style and length for this prompt.</p>
+            </div>
+          </div>
+          <div class="form-grid">
+            <label>
+              Temperature
+              <input id="promptEditorTemperature" type="number" min="0" max="2" step="0.1" value="0.3">
+              <span class="form-help-text">Lower values are more consistent. Recommended: 0.3.</span>
+            </label>
+            <label>
+              Top P
+              <input id="promptEditorTopP" type="number" min="0" max="1" step="0.05" value="0.8">
+              <span class="form-help-text">Controls sampling diversity. Recommended: 0.8.</span>
+            </label>
+            <label>
+              Max output tokens
+              <input id="promptEditorMaxOutputTokens" type="number" min="512" max="8192" step="256" value="4096">
+              <span class="form-help-text">Lower values reduce timeout/overload risk. Recommended: 4096.</span>
+            </label>
+          </div>
+        </div>
 
         <div class="prompt-parameter-builder">
           <div class="section-header compact-section-header">

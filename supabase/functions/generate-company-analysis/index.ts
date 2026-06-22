@@ -14,6 +14,23 @@ function jsonResponse(body: unknown, status = 200) {
   });
 }
 
+function normalizeGenerationConfig(config: unknown) {
+  const source = config && typeof config === "object" ? config as Record<string, unknown> : {};
+
+  return {
+    temperature: clampNumber(source.temperature, 0.3, 0, 2),
+    topP: clampNumber(source.topP, 0.8, 0, 1),
+    maxOutputTokens: Math.round(clampNumber(source.maxOutputTokens, 4096, 512, 8192)),
+  };
+}
+
+function clampNumber(value: unknown, fallback: number, minimum: number, maximum: number) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return fallback;
+  return Math.min(Math.max(numericValue, minimum), maximum);
+}
+
+
 serve(async (req) => {
   console.log("[generate-company-analysis] method:", req.method);
 
@@ -74,6 +91,7 @@ serve(async (req) => {
 
     const promptText = body.promptText;
     const parameters = body.parameters;
+    const generationConfig = normalizeGenerationConfig(body.generationConfig);
 
     if (typeof promptText !== "string" || !promptText.trim()) {
       return jsonResponse(
@@ -108,6 +126,7 @@ serve(async (req) => {
     console.log("[generate-company-analysis] calling Gemini", {
       model: modelName,
       promptLength: finalPrompt.length,
+      generationConfig,
     });
 
     const geminiResponse = await fetch(geminiUrl, {
@@ -121,11 +140,7 @@ serve(async (req) => {
             parts: [{ text: finalPrompt }],
           },
         ],
-        generationConfig: {
-          temperature: 0.3,
-          topP: 0.8,
-          maxOutputTokens: 4096,
-        },
+        generationConfig,
       }),
     });
 

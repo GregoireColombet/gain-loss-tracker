@@ -9,6 +9,7 @@ create table if not exists ai_prompts (
   description text,
   prompt_text text not null,
   parameters jsonb not null default '[]'::jsonb,
+  generation_config jsonb not null default '{"temperature":0.3,"topP":0.8,"maxOutputTokens":4096}'::jsonb,
   is_default boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

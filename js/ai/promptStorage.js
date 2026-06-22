@@ -1,6 +1,6 @@
 import { supabaseClient, isSupabaseConfigured } from '../supabaseClient.js';
 import { getCurrentUser } from '../authService.js';
-import { ANALYSIS_PROMPTS, PARAMETER_DEFINITIONS, findDefaultPromptById } from './promptRegistry.js';
+import { ANALYSIS_PROMPTS, DEFAULT_GENERATION_CONFIG, PARAMETER_DEFINITIONS, findDefaultPromptById } from './promptRegistry.js';
 import { loadPromptTemplate } from './promptTemplateRenderer.js';
 
 const LOCAL_CUSTOM_PROMPTS_KEY = 'stockTrackerCustomPrompts';
@@ -14,6 +14,7 @@ export function createBlankPromptDraft() {
     description: '',
     promptText: '',
     parameters: [],
+    generationConfig: { ...DEFAULT_GENERATION_CONFIG },
     isDefault: false,
     isCustom: true
   };
@@ -42,7 +43,8 @@ export async function loadPromptForEditor(promptId) {
   return {
     ...selectedPrompt,
     promptText,
-    parameters: normalizePromptParameters(selectedPrompt.parameters)
+    parameters: normalizePromptParameters(selectedPrompt.parameters),
+    generationConfig: normalizeGenerationConfig(selectedPrompt.generationConfig)
   };
 }
 
@@ -139,6 +141,17 @@ export function normalizePromptParameters(parameters) {
   }).filter(parameter => parameter.name);
 }
 
+
+export function normalizeGenerationConfig(config = {}) {
+  const source = config && typeof config === 'object' ? config : {};
+
+  return {
+    temperature: clampNumber(source.temperature, DEFAULT_GENERATION_CONFIG.temperature, 0, 2),
+    topP: clampNumber(source.topP, DEFAULT_GENERATION_CONFIG.topP, 0, 1),
+    maxOutputTokens: clampInteger(source.maxOutputTokens, DEFAULT_GENERATION_CONFIG.maxOutputTokens, 512, 8192)
+  };
+}
+
 export function parameterObjectsToNames(parameters) {
   return normalizePromptParameters(parameters).map(parameter => parameter.name);
 }
@@ -155,6 +168,7 @@ function normalizePromptForSave(promptDraft) {
     description: String(promptDraft.description || '').trim(),
     promptText: String(promptDraft.promptText || '').trim(),
     parameters,
+    generationConfig: normalizeGenerationConfig(promptDraft.generationConfig),
     isDefault: false,
     isCustom: true,
     updatedAt: new Date().toISOString()
@@ -175,6 +189,7 @@ async function saveCustomPromptToSupabase(prompt) {
     description: prompt.description,
     prompt_text: prompt.promptText,
     parameters: prompt.parameters,
+    generation_config: prompt.generationConfig,
     is_default: false,
     updated_at: prompt.updatedAt
   };
@@ -182,11 +197,36 @@ async function saveCustomPromptToSupabase(prompt) {
   const { data, error } = await supabaseClient
     .from('ai_prompts')
     .upsert(payload, { onConflict: 'id' })
+    .select('id, title, category, description, prompt_text, parameters, generation_config, created_at, updated_at')
+    .single();
+
+  if (error?.code === 'PGRST204' || error?.message?.includes('generation_config')) {
+    return saveCustomPromptUsingLegacyColumns(prompt, currentUser.id);
+  }
+
+  if (error) throw error;
+  return mapSupabasePrompt(data);
+}
+
+async function saveCustomPromptUsingLegacyColumns(prompt, userId) {
+  const { data, error } = await supabaseClient
+    .from('ai_prompts')
+    .upsert({
+      id: prompt.id,
+      user_id: userId,
+      title: prompt.title,
+      category: prompt.category,
+      description: prompt.description,
+      prompt_text: prompt.promptText,
+      parameters: prompt.parameters,
+      is_default: false,
+      updated_at: prompt.updatedAt
+    }, { onConflict: 'id' })
     .select('id, title, category, description, prompt_text, parameters, created_at, updated_at')
     .single();
 
   if (error) throw error;
-  return mapSupabasePrompt(data);
+  return mapSupabasePrompt({ ...data, generation_config: prompt.generationConfig });
 }
 
 async function loadCustomPrompts() {
@@ -197,11 +237,7 @@ async function loadCustomPrompts() {
   if (!currentUser) return localPrompts;
 
   try {
-    const { data, error } = await supabaseClient
-      .from('ai_prompts')
-      .select('id, title, category, description, prompt_text, parameters, created_at, updated_at')
-      .eq('user_id', currentUser.id)
-      .order('updated_at', { ascending: false });
+    const { data, error } = await selectCustomPrompts(currentUser.id);
 
     if (error) throw error;
 
@@ -214,6 +250,24 @@ async function loadCustomPrompts() {
   }
 }
 
+async function selectCustomPrompts(userId) {
+  const extendedResult = await supabaseClient
+    .from('ai_prompts')
+    .select('id, title, category, description, prompt_text, parameters, generation_config, created_at, updated_at')
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false });
+
+  if (!extendedResult.error?.message?.includes('generation_config') && extendedResult.error?.code !== 'PGRST204') {
+    return extendedResult;
+  }
+
+  return supabaseClient
+    .from('ai_prompts')
+    .select('id, title, category, description, prompt_text, parameters, created_at, updated_at')
+    .eq('user_id', userId)
+    .order('updated_at', { ascending: false });
+}
+
 function mapSupabasePrompt(row) {
   return {
     id: row.id,
@@ -222,6 +276,7 @@ function mapSupabasePrompt(row) {
     description: row.description || '',
     promptText: row.prompt_text || '',
     parameters: normalizePromptParameters(row.parameters || []),
+    generationConfig: normalizeGenerationConfig(row.generation_config),
     isDefault: false,
     isCustom: true,
     createdAt: row.created_at,
@@ -235,7 +290,8 @@ function loadLocalCustomPrompts() {
     const parsed = value ? JSON.parse(value) : [];
     return Array.isArray(parsed) ? parsed.map(prompt => ({
       ...prompt,
-      parameters: normalizePromptParameters(prompt.parameters || [])
+      parameters: normalizePromptParameters(prompt.parameters || []),
+      generationConfig: normalizeGenerationConfig(prompt.generationConfig)
     })) : [];
   } catch (error) {
     console.error('Unable to read local custom prompts.', error);
@@ -282,6 +338,17 @@ function createPromptId(title) {
     .replace(/^-+|-+$/g, '')
     .slice(0, 48) || 'custom-prompt';
   return `${slug}-${Date.now().toString(36)}`;
+}
+
+
+function clampNumber(value, fallback, minimum, maximum) {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) return fallback;
+  return Math.min(Math.max(numericValue, minimum), maximum);
+}
+
+function clampInteger(value, fallback, minimum, maximum) {
+  return Math.round(clampNumber(value, fallback, minimum, maximum));
 }
 
 function parseOptions(value) {

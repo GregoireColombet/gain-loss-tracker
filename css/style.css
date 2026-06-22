@@ -518,13 +518,11 @@ tbody tr:hover {
   margin-bottom: 0;
 }
 
-.auth-panel,
 .break-even-panel {
   position: relative;
   overflow: hidden;
 }
 
-.auth-panel::before,
 .break-even-panel::before {
   content: "";
   position: absolute;
@@ -533,15 +531,143 @@ tbody tr:hover {
   background: linear-gradient(180deg, var(--primary-color), #06b6d4, var(--accent-color));
 }
 
-.auth-form {
-  display: flex;
-  gap: 1rem;
-  align-items: end;
-  flex-wrap: wrap;
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
-.auth-form label {
-  min-width: 260px;
+.sync-bar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  min-height: 38px;
+  margin: -8px 0 16px;
+  padding: 6px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.07);
+  backdrop-filter: blur(14px);
+  font-size: 0.82rem;
+}
+
+.sync-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.sync-status-dot {
+  flex: 0 0 auto;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--warning-background-color);
+  box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.14);
+}
+
+.sync-status-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted-text-color);
+  font-weight: 700;
+}
+
+.sync-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 1 auto;
+}
+
+.sync-form[hidden],
+.sync-logout-button[hidden] {
+  display: none;
+}
+
+.sync-form input {
+  width: min(210px, 36vw);
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+}
+
+.sync-action-button {
+  min-height: 28px;
+  padding: 0 12px;
+  box-shadow: none;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.sync-bar--connected {
+  border-color: rgba(22, 163, 74, 0.35);
+  background: rgba(240, 253, 244, 0.94);
+}
+
+.sync-bar--connected .sync-status-dot {
+  background: var(--success-color);
+  box-shadow: 0 0 0 4px rgba(22, 163, 74, 0.14);
+}
+
+.sync-bar--connected .sync-status-text {
+  color: #166534;
+}
+
+.sync-bar--disconnected,
+.sync-bar--checking {
+  border-color: rgba(245, 158, 11, 0.38);
+  background: rgba(255, 251, 235, 0.94);
+}
+
+.sync-bar--disconnected .sync-status-dot,
+.sync-bar--checking .sync-status-dot {
+  background: #f59e0b;
+}
+
+.sync-bar--disconnected .sync-status-text,
+.sync-bar--checking .sync-status-text {
+  color: #92400e;
+}
+
+.sync-bar--local {
+  border-color: rgba(100, 116, 139, 0.32);
+  background: rgba(248, 250, 252, 0.94);
+}
+
+.sync-bar--local .sync-status-dot {
+  background: var(--muted-text-color);
+  box-shadow: 0 0 0 4px rgba(100, 116, 139, 0.14);
+}
+
+.sync-bar--error {
+  border-color: rgba(220, 38, 38, 0.35);
+  background: rgba(254, 242, 242, 0.94);
+}
+
+.sync-bar--error .sync-status-dot {
+  background: var(--danger-color);
+  box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.14);
+}
+
+.sync-bar--error .sync-status-text {
+  color: #991b1b;
 }
 
 .break-even-form {
@@ -700,17 +826,17 @@ tbody tr:hover {
 
   .form-grid,
   .manual-price-form,
-  .auth-form,
+  .sync-form,
   .break-even-form {
     gap: 12px;
   }
 
-  .auth-form {
+  .sync-form {
     align-items: stretch;
     display: grid;
   }
 
-  .auth-form label {
+  .sync-form label {
     min-width: 0;
   }
 
@@ -966,7 +1092,7 @@ body,
 .break-even-form,
 .break-even-row,
 .manual-price-form,
-.auth-form,
+.sync-form,
 .table-scroll-wrapper {
   min-width: 0;
 }
@@ -978,7 +1104,7 @@ body,
 .form-actions,
 .break-even-actions,
 .dialog-actions,
-.auth-form {
+.sync-form {
   max-width: 100%;
   flex-wrap: wrap;
 }
@@ -1962,4 +2088,32 @@ button:disabled,
 .analysis-status-badge.failed {
   background: rgba(220, 38, 38, 0.12);
   color: #b91c1c;
+}
+
+@media (max-width: 720px) {
+  .sync-bar {
+    align-items: stretch;
+    border-radius: 16px;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: -4px;
+  }
+
+  .sync-status-text {
+    white-space: normal;
+  }
+
+  .sync-form {
+    display: flex;
+    width: 100%;
+  }
+
+  .sync-form input {
+    flex: 1 1 auto;
+    width: auto;
+  }
+
+  .sync-action-button {
+    flex: 0 0 auto;
+  }
 }

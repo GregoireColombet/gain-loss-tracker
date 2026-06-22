@@ -5,7 +5,8 @@ import {
   loadAvailablePrompts,
   loadPromptForEditor,
   normalizePromptParameters,
-  savePromptDefinition
+  savePromptDefinition,
+  normalizeGenerationConfig
 } from '../ai/promptStorage.js';
 import { getErrorMessage, setButtonProcessing } from '../utils/dom.js';
 
@@ -67,6 +68,11 @@ function renderPromptEditorForm(prompt) {
   setInputValue('#promptEditorCategory', prompt.category || (prompt.isDefault ? 'Default copy' : 'Custom'));
   setInputValue('#promptEditorDescription', prompt.description || '');
   setInputValue('#promptEditorText', prompt.promptText || '');
+
+  const generationConfig = normalizeGenerationConfig(prompt.generationConfig);
+  setInputValue('#promptEditorTemperature', generationConfig.temperature);
+  setInputValue('#promptEditorTopP', generationConfig.topP);
+  setInputValue('#promptEditorMaxOutputTokens', generationConfig.maxOutputTokens);
 
   const defaultNotice = document.querySelector('#promptEditorDefaultNotice');
   if (defaultNotice) {
@@ -220,9 +226,18 @@ function collectPromptEditorDraft() {
     description: document.querySelector('#promptEditorDescription')?.value || '',
     promptText: document.querySelector('#promptEditorText')?.value || '',
     parameters: collectParameterRows(),
+    generationConfig: collectGenerationConfig(),
     isCustom: true,
     isDefault: false
   };
+}
+
+function collectGenerationConfig() {
+  return normalizeGenerationConfig({
+    temperature: document.querySelector('#promptEditorTemperature')?.value,
+    topP: document.querySelector('#promptEditorTopP')?.value,
+    maxOutputTokens: document.querySelector('#promptEditorMaxOutputTokens')?.value
+  });
 }
 
 function collectParameterRows() {
@@ -248,7 +263,7 @@ function updatePromptEditorPreview() {
     ? draft.parameters.map(parameter => `{{${parameter.name}}}`).join(', ')
     : 'No parameters defined';
 
-  preview.textContent = `Title: ${draft.title || 'Untitled custom prompt'}\nParameters: ${parameterList}\n\n${draft.promptText || 'Write your prompt text here.'}`;
+  preview.textContent = `Title: ${draft.title || 'Untitled custom prompt'}\nParameters: ${parameterList}\nGeneration settings: temperature ${draft.generationConfig.temperature}, topP ${draft.generationConfig.topP}, maxOutputTokens ${draft.generationConfig.maxOutputTokens}\n\n${draft.promptText || 'Write your prompt text here.'}`;
 }
 
 function setPromptEditorStatus(message, type = 'info') {

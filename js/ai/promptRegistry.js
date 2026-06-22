@@ -1,73 +1,89 @@
+export const DEFAULT_GENERATION_CONFIG = {
+  temperature: 0.3,
+  topP: 0.8,
+  maxOutputTokens: 4096
+};
+
 export const ANALYSIS_PROMPTS = [
   {
     id: 'stock-screener',
     title: 'Goldman Sachs Stock Screener',
     description: 'Screen top stock candidates for an investor profile using valuation, growth, debt, dividend, moat, risk, entry zones, and targets.',
     file: './ai/prompts/stock-screener.md',
-    parameters: ['riskTolerance', 'investmentAmount', 'timeHorizon', 'preferredSectors', 'market', 'currency']
+    parameters: ['riskTolerance', 'investmentAmount', 'timeHorizon', 'preferredSectors', 'market', 'currency'],
+    generationConfig: DEFAULT_GENERATION_CONFIG
   },
   {
     id: 'dcf-valuation',
     title: 'Morgan Stanley DCF Valuation',
     description: 'Build a DCF-style valuation memo with 5-year projections, WACC, terminal value, sensitivity, and valuation verdict.',
     file: './ai/prompts/dcf-valuation.md',
-    parameters: ['companyName', 'ticker', 'market', 'currency', 'revenueGrowth', 'discountRate', 'terminalGrowthRate', 'forecastYears']
+    parameters: ['companyName', 'ticker', 'market', 'currency', 'revenueGrowth', 'discountRate', 'terminalGrowthRate', 'forecastYears'],
+    generationConfig: DEFAULT_GENERATION_CONFIG
   },
   {
     id: 'risk-assessment',
     title: 'Bridgewater Risk Assessment',
     description: 'Assess portfolio correlation, concentration, macro exposure, stress tests, liquidity, tail risks, hedging, and rebalancing.',
     file: './ai/prompts/risk-assessment.md',
-    parameters: ['portfolioHoldings', 'portfolioValue', 'riskFocus', 'currency']
+    parameters: ['portfolioHoldings', 'portfolioValue', 'riskFocus', 'currency'],
+    generationConfig: DEFAULT_GENERATION_CONFIG
   },
   {
     id: 'earnings-analyzer',
     title: 'JPMorgan Earnings Analyzer',
     description: 'Create a pre-earnings research brief with estimate history, consensus, key metrics, guidance, options move, and action plan.',
     file: './ai/prompts/earnings-analyzer.md',
-    parameters: ['companyName', 'ticker', 'market', 'earningsDate', 'earningsPeriod']
+    parameters: ['companyName', 'ticker', 'market', 'earningsDate', 'earningsPeriod'],
+    generationConfig: DEFAULT_GENERATION_CONFIG
   },
   {
     id: 'portfolio-builder',
     title: 'BlackRock Portfolio Builder',
     description: 'Build a multi-asset portfolio with allocation, ETFs/funds, expected return, drawdown, rebalancing, DCA, and policy statement.',
     file: './ai/prompts/portfolio-builder.md',
-    parameters: ['age', 'income', 'savings', 'portfolioGoal', 'riskTolerance', 'accountType', 'timeHorizon', 'currency', 'existingHoldings', 'monthlyContribution']
+    parameters: ['age', 'income', 'savings', 'portfolioGoal', 'riskTolerance', 'accountType', 'timeHorizon', 'currency', 'existingHoldings', 'monthlyContribution'],
+    generationConfig: DEFAULT_GENERATION_CONFIG
   },
   {
     id: 'technical-analysis',
     title: 'Citadel Technical Analysis',
     description: 'Analyze trend, support/resistance, moving averages, RSI, MACD, Bollinger Bands, volume, patterns, Fibonacci, and trade setup.',
     file: './ai/prompts/technical-analysis.md',
-    parameters: ['companyName', 'ticker', 'market', 'currentPosition', 'timeFrame', 'chartContext']
+    parameters: ['companyName', 'ticker', 'market', 'currentPosition', 'timeFrame', 'chartContext'],
+    generationConfig: DEFAULT_GENERATION_CONFIG
   },
   {
     id: 'dividend-strategy',
     title: 'Harvard Endowment Dividend Strategy',
     description: 'Build a dividend income portfolio with yield, safety, growth history, payout ratios, income projection, DRIP, and tax notes.',
     file: './ai/prompts/dividend-strategy.md',
-    parameters: ['investmentAmount', 'incomeGoal', 'accountType', 'taxBracket', 'market', 'currency']
+    parameters: ['investmentAmount', 'incomeGoal', 'accountType', 'taxBracket', 'market', 'currency'],
+    generationConfig: DEFAULT_GENERATION_CONFIG
   },
   {
     id: 'competitive-analysis',
     title: 'Bain Competitive Analysis for Stocks',
     description: 'Compare companies in a sector using market cap, margins, moat, share trends, management, R&D, threats, SWOT, and catalysts.',
     file: './ai/prompts/competitive-analysis.md',
-    parameters: ['sector', 'market', 'competitors', 'period']
+    parameters: ['sector', 'market', 'competitors', 'period'],
+    generationConfig: DEFAULT_GENERATION_CONFIG
   },
   {
     id: 'pattern-finder',
     title: 'Renaissance Technologies Pattern Finder',
     description: 'Search for statistical patterns, seasonality, event correlations, insider/institutional activity, short interest, options signals, and earnings behavior.',
     file: './ai/prompts/pattern-finder.md',
-    parameters: ['companyName', 'ticker', 'market', 'period', 'patternFocus']
+    parameters: ['companyName', 'ticker', 'market', 'period', 'patternFocus'],
+    generationConfig: DEFAULT_GENERATION_CONFIG
   },
   {
     id: 'impact-report',
     title: 'McKinsey Macro Economic Impact Report',
     description: 'Analyze macro conditions and portfolio impact across rates, inflation, GDP, currency, employment, Fed policy, geopolitics, and sector rotation.',
     file: './ai/prompts/impact-report.md',
-    parameters: ['portfolioHoldings', 'economicConcern', 'currency', 'market']
+    parameters: ['portfolioHoldings', 'economicConcern', 'currency', 'market'],
+    generationConfig: DEFAULT_GENERATION_CONFIG
   }
 ];
 

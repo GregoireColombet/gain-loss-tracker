@@ -305,6 +305,27 @@ Each custom prompt stores:
 - description
 - prompt text
 - dynamic parameters JSON
+- Gemini generation settings (`temperature`, `topP`, `maxOutputTokens`)
+
+Default generation settings are:
+
+```js
+temperature: 0.3
+topP: 0.8
+maxOutputTokens: 4096
+```
+
+Run this migration if your `ai_prompts` table was created before per-prompt generation settings were added:
+
+```sql
+\i supabase-ai-prompts-generation-config-migration.sql
+```
+
+Optionally record the settings used for each saved report:
+
+```sql
+\i supabase-analysis-reports-generation-config-migration.sql
+```
 
 The Generate Analysis form builds its fields from each prompt's parameters, and the folding prompt preview shows the selected prompt before sending it to Gemini.
 

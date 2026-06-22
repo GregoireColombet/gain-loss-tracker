@@ -3,25 +3,50 @@ import { isSupabaseConfigured } from '../supabaseClient.js';
 import { showMessage } from '../uiHelpers.js';
 import { getErrorMessage } from '../utils/dom.js';
 
+const STATUS_CLASS_NAMES = [
+  'sync-bar--checking',
+  'sync-bar--connected',
+  'sync-bar--disconnected',
+  'sync-bar--local',
+  'sync-bar--error'
+];
+
+function setSyncStatus(authPanel, authStatus, status, text) {
+  if (!authPanel || !authStatus) return;
+  authPanel.classList.remove(...STATUS_CLASS_NAMES);
+  authPanel.classList.add(`sync-bar--${status}`);
+  authStatus.textContent = text;
+}
+
 export async function refreshAuthenticationPanel({ authPanel, authForm, authStatus, signOutButton }) {
   if (!authPanel) return;
 
+  setSyncStatus(authPanel, authStatus, 'checking', 'Checking sync status...');
+
   if (!isSupabaseConfigured()) {
-    authStatus.textContent = 'Supabase is not configured yet. The app is using localStorage.';
-    authForm.hidden = true;
-    signOutButton.hidden = true;
+    setSyncStatus(authPanel, authStatus, 'local', 'Local only · Supabase not configured');
+    if (authForm) authForm.hidden = true;
+    if (signOutButton) signOutButton.hidden = true;
     return;
   }
 
-  const currentUser = await getCurrentUser();
-  if (currentUser) {
-    authStatus.textContent = `Automatically connected as ${currentUser.email}. Transactions sync to Supabase.`;
-    authForm.hidden = true;
-    signOutButton.hidden = false;
-  } else {
-    authStatus.textContent = 'No saved session found. Enter your email once; future visits will connect automatically on this browser.';
-    authForm.hidden = false;
-    signOutButton.hidden = true;
+  try {
+    const currentUser = await getCurrentUser();
+
+    if (currentUser) {
+      setSyncStatus(authPanel, authStatus, 'connected', `Connected · ${currentUser.email}`);
+      if (authForm) authForm.hidden = true;
+      if (signOutButton) signOutButton.hidden = false;
+      return;
+    }
+
+    setSyncStatus(authPanel, authStatus, 'disconnected', 'Not connected');
+    if (authForm) authForm.hidden = false;
+    if (signOutButton) signOutButton.hidden = true;
+  } catch (error) {
+    setSyncStatus(authPanel, authStatus, 'error', `Sync error · ${getErrorMessage(error)}`);
+    if (authForm) authForm.hidden = false;
+    if (signOutButton) signOutButton.hidden = true;
   }
 }
 
