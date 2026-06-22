@@ -1,70 +1,78 @@
 import { API_STATUS } from './constants.js';
+import { supabaseClient, isSupabaseConfigured } from './supabaseClient.js';
 
-// Finnhub quote endpoint documentation:
-// https://finnhub.io/docs/api/quote
-const FINNHUB_QUOTE_URL = 'https://finnhub.io/api/v1/quote';
-
-// Replace this placeholder with your Finnhub API key.
-// Note: because this is a browser-only app, this public key can be viewed by users.
-// For production, call Finnhub from a small backend/Supabase Edge Function instead.
-const FINNHUB_API_KEY = 'd8r9kg1r01qni6tgv19gd8r9kg1r01qni6tgv1a0';
+// Supabase Edge Function used to fetch current prices from Finnhub.
+// The Finnhub API key should be stored as a Supabase secret named FINNHUB_API_KEY.
+const STOCK_PRICE_FUNCTION_NAME = 'get-stock-price';
 
 function normalizeTicker(ticker) {
   return String(ticker || '').trim().toUpperCase();
 }
 
-function isFinnhubConfigured() {
-  return Boolean(FINNHUB_API_KEY && !FINNHUB_API_KEY.startsWith('PASTE_'));
+function buildUnavailablePriceResult(ticker, source) {
+  return {
+    ticker,
+    status: API_STATUS.NOT_REACHABLE,
+    price: null,
+    source
+  };
 }
 
-function buildFinnhubQuoteUrl(ticker) {
-  const url = new URL(FINNHUB_QUOTE_URL);
-  url.searchParams.set('symbol', ticker);
-  url.searchParams.set('token', FINNHUB_API_KEY);
-  return url.toString();
+function normalizePriceResponse(data) {
+  // Supported Edge Function response shapes:
+  // { price: 298.05 }
+  // { currentPrice: 298.05 }
+  // { c: 298.05 } // raw Finnhub-compatible quote fallback
+  const price = Number(data?.price ?? data?.currentPrice ?? data?.c);
+
+  if (!Number.isFinite(price) || price <= 0) {
+    throw new Error('Supabase Edge Function returned an invalid market price.');
+  }
+
+  return price;
 }
 
 export async function fetchCurrentMarketPrice(ticker) {
   const normalizedTicker = normalizeTicker(ticker);
 
   if (!normalizedTicker) {
-    return { ticker: normalizedTicker, status: API_STATUS.NOT_REACHABLE, price: null };
+    return buildUnavailablePriceResult(normalizedTicker, 'Missing ticker symbol');
   }
 
-  if (!isFinnhubConfigured()) {
-    return {
-      ticker: normalizedTicker,
-      status: API_STATUS.NOT_REACHABLE,
-      price: null,
-      source: 'Finnhub API key is not configured'
-    };
+  if (!isSupabaseConfigured() || !supabaseClient) {
+    return buildUnavailablePriceResult(
+      normalizedTicker,
+      'Supabase is not configured for live market prices'
+    );
   }
 
   try {
-    const response = await fetch(buildFinnhubQuoteUrl(normalizedTicker));
-    if (!response.ok) throw new Error('Finnhub response was not successful.');
+    const { data, error } = await supabaseClient.functions.invoke(STOCK_PRICE_FUNCTION_NAME, {
+      body: { symbol: normalizedTicker }
+    });
 
-    const quote = await response.json();
-    const marketPrice = Number(quote?.c);
-
-    if (!Number.isFinite(marketPrice) || marketPrice <= 0) {
-      throw new Error('Finnhub current price is missing or invalid.');
+    if (error) {
+      throw new Error(error.message || 'Supabase Edge Function request failed.');
     }
+
+    if (data?.error) {
+      throw new Error(data.error);
+    }
+
+    const marketPrice = normalizePriceResponse(data);
 
     return {
       ticker: normalizedTicker,
       status: API_STATUS.READY,
       price: marketPrice,
-      source: 'Finnhub quote API'
+      source: 'Supabase Edge Function: get-stock-price'
     };
   } catch (error) {
-    console.warn(`Finnhub API not reachable for ${normalizedTicker}.`, error);
-    return {
-      ticker: normalizedTicker,
-      status: API_STATUS.NOT_REACHABLE,
-      price: null,
-      source: 'Finnhub API not reachable'
-    };
+    console.warn(`Market price API not reachable for ${normalizedTicker}.`, error);
+    return buildUnavailablePriceResult(
+      normalizedTicker,
+      'Supabase Edge Function not reachable'
+    );
   }
 }
 

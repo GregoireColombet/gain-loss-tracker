@@ -1406,3 +1406,96 @@ button:disabled,
   background: linear-gradient(135deg, var(--danger-color), #b91c1c);
   box-shadow: 0 12px 24px rgba(220, 38, 38, 0.18);
 }
+
+.company-fee-summary {
+  align-items: baseline;
+  background: rgba(37, 99, 235, 0.07);
+  border: 1px solid rgba(37, 99, 235, 0.16);
+  border-radius: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.75rem;
+  margin-top: 0.85rem;
+  padding: 0.75rem 0.9rem;
+}
+
+.company-fee-summary span {
+  color: var(--muted-text-color);
+  font-size: 0.92rem;
+  font-weight: 700;
+}
+
+.company-fee-summary strong {
+  color: var(--text-color);
+  font-size: 1.15rem;
+}
+
+.company-fee-summary small {
+  color: var(--muted-text-color);
+  font-weight: 650;
+}
+
+.company-fee-range-controls {
+  margin-top: 0.85rem;
+  max-width: 680px;
+}
+
+@media (max-width: 720px) {
+  .company-fee-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+.ai-analysis-panel {
+  border-top: 4px solid rgba(124, 58, 237, 0.42);
+}
+
+.ai-analysis-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.ai-analysis-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ai-parameter-fields {
+  margin-top: 0.25rem;
+}
+
+.ai-extra-instructions {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.ai-extra-instructions textarea,
+.ai-parameter-fields textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.ai-analysis-result {
+  background: #0f172a;
+  border-radius: 18px;
+  color: #e5e7eb;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  line-height: 1.55;
+  margin: 1rem 0 0;
+  max-height: 680px;
+  overflow: auto;
+  padding: 1rem;
+  white-space: pre-wrap;
+}
+
+.ai-analysis-result:empty {
+  display: none;
+}
+
+@media (max-width: 720px) {
+  .ai-analysis-grid {
+    grid-template-columns: 1fr;
+  }
+}

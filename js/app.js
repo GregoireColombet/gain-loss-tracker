@@ -10,8 +10,9 @@ import { calculateFeeForTransaction, calculateMinimumBreakEvenSellPrice, getDefa
 import { findFirstElement, getErrorMessage, getTodayDateString, setButtonProcessing } from './utils/dom.js';
 import { refreshAuthenticationPanel as renderAuthenticationPanel, sendLoginLinkFromForm, signOutAndReloadData } from './ui/authPanel.js';
 import { applyFieldErrors, bindLiveValidationCleanup, clearFormValidation, scrollToFirstInvalidField, setFieldError, validateTransactionFormUi } from './ui/formValidation.js';
-import { renderCompanyList, renderSummary } from './ui/dashboardRenderer.js';
+import { renderCompanyFeeSummary, renderCompanyList, renderSummary } from './ui/dashboardRenderer.js';
 import { refreshTransactionInputSuggestions } from './ui/inputSuggestions.js';
+import { initializeAiAnalysisPanel, refreshAiCompanyOptions } from './ui/aiAnalysisPanel.js';
 
 const transactionForm = document.querySelector('#transactionForm');
 const transactionTypeSelect = document.querySelector('#type');
@@ -51,6 +52,11 @@ const breakEvenResultElement = document.querySelector('#breakEvenResult');
 const transactionFeeInput = transactionForm?.elements.transactionFee;
 const useFeeRuleForTransactionInput = document.querySelector('#useFeeRuleForTransaction');
 const calculatedFeePreviewElement = document.querySelector('#calculatedFeePreview');
+const companiesTotalFeesPaidElement = document.querySelector('#companiesTotalFeesPaid');
+const companiesFeeDateRangeLabelElement = document.querySelector('#companiesFeeDateRangeLabel');
+const companyFeeStartDateInput = document.querySelector('#companyFeeStartDate');
+const companyFeeEndDateInput = document.querySelector('#companyFeeEndDate');
+const resetCompanyFeeRangeButton = document.querySelector('#resetCompanyFeeRangeButton');
 
 let transactions = [];
 let latestMarketPriceResults = {};
@@ -171,6 +177,7 @@ async function initializeDashboard() {
   feeRules = await loadFeeRules(getDefaultFeeRules());
   renderFeeRuleInputs();
   transactions = await loadInitialTransactions();
+  initializeAiAnalysisPanel({ getTransactions: () => transactions });
   updateTransactionActionUi();
   updateTransactionFeeFromRule();
   await refreshDashboard();
@@ -203,6 +210,9 @@ function bindDashboardEvents() {
   gainLossStartDateInput?.addEventListener('change', renderGainLossChart);
   gainLossEndDateInput?.addEventListener('change', renderGainLossChart);
   resetGainLossRangeButton?.addEventListener('click', handleResetGainLossRange);
+  companyFeeStartDateInput?.addEventListener('change', refreshCompanyFeeSummary);
+  companyFeeEndDateInput?.addEventListener('change', refreshCompanyFeeSummary);
+  resetCompanyFeeRangeButton?.addEventListener('click', handleResetCompanyFeeRange);
 }
 
 
@@ -232,14 +242,40 @@ async function refreshDashboard() {
   const portfolio = calculatePortfolioWithMarketPrices(basePortfolio, marketPricesByTicker, manualPricesByTicker);
 
   renderSummary(portfolio, { totalInvestedElement, totalRealizedElement, totalUnrealizedElement, overallGainLossElement });
+  refreshCompanyFeeSummary();
   renderCompanyList(portfolio, companyListElement, handleManualPriceSubmit);
   refreshTransactionInputSuggestions(transactions, transactionForm);
+  refreshAiCompanyOptions(transactions);
   const openHoldings = basePortfolio.holdings.filter(holding => holding.remainingQuantity > 0);
   setSelectOptions(sellTickerSelect, openHoldings);
   setSelectOptions(breakEvenTickerSelect, openHoldings);
   updateBreakEvenQuantityFromSelectedHolding(basePortfolio);
   initializeDefaultGainLossDateRange();
   renderGainLossChart();
+}
+
+function refreshCompanyFeeSummary() {
+  renderCompanyFeeSummary(
+    transactions,
+    {
+      totalFeesElement: companiesTotalFeesPaidElement,
+      dateRangeLabelElement: companiesFeeDateRangeLabelElement
+    },
+    getCompanyFeeDateRange()
+  );
+}
+
+function getCompanyFeeDateRange() {
+  return {
+    startDate: companyFeeStartDateInput?.value || '',
+    endDate: companyFeeEndDateInput?.value || ''
+  };
+}
+
+function handleResetCompanyFeeRange() {
+  if (companyFeeStartDateInput) companyFeeStartDateInput.value = '';
+  if (companyFeeEndDateInput) companyFeeEndDateInput.value = '';
+  refreshCompanyFeeSummary();
 }
 
 function renderGainLossChart() {

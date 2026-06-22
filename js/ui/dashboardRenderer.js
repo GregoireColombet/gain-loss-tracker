@@ -15,6 +15,42 @@ export function renderSummary(portfolio, elements) {
   overallGainLossElement.className = getGainLossClass(portfolio.overallGainLoss);
 }
 
+
+export function calculateTotalTransactionFees(transactions, dateRange = {}) {
+  const startDate = dateRange.startDate || '';
+  const endDate = dateRange.endDate || '';
+
+  return transactions
+    .filter(transaction => {
+      if (startDate && transaction.date < startDate) return false;
+      if (endDate && transaction.date > endDate) return false;
+      return true;
+    })
+    .reduce((totalFees, transaction) => totalFees + Number(transaction.transactionFee || 0), 0);
+}
+
+export function renderCompanyFeeSummary(transactions, elements, dateRange = {}) {
+  const { totalFeesElement, dateRangeLabelElement } = elements;
+  if (!totalFeesElement) return;
+
+  const startDate = dateRange.startDate || '';
+  const endDate = dateRange.endDate || '';
+  const totalFees = calculateTotalTransactionFees(transactions, { startDate, endDate });
+
+  totalFeesElement.textContent = formatMoney(totalFees);
+
+  if (!dateRangeLabelElement) return;
+  if (startDate && endDate) {
+    dateRangeLabelElement.textContent = `${startDate} to ${endDate}`;
+  } else if (startDate) {
+    dateRangeLabelElement.textContent = `From ${startDate}`;
+  } else if (endDate) {
+    dateRangeLabelElement.textContent = `Until ${endDate}`;
+  } else {
+    dateRangeLabelElement.textContent = 'All dates';
+  }
+}
+
 export function sortHoldingsForCompanyList(holdings) {
   return [...holdings].sort((firstHolding, secondHolding) => {
     const firstHasRemainingShares = firstHolding.remainingQuantity > 0;

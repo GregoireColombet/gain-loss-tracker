@@ -1,13 +1,13 @@
 # Stock Gain/Loss Tracker
 
-A personal and educational stock transaction tracker built with HTML, CSS, JavaScript modules, Supabase, localStorage fallback, JSON import/export, and an unofficial Yahoo Finance quote endpoint.
+A personal and educational stock transaction tracker built with HTML, CSS, JavaScript modules, Supabase, localStorage fallback, JSON import/export, and the Finnhub quote API.
 
 ## Features
 
 - Buy and sell transaction entry
 - Average-cost method
 - Realized gain/loss
-- Unrealized gain/loss using live Yahoo Finance price when reachable
+- Unrealized gain/loss using live Finnhub price when reachable
 - Manual current price fallback
 - API failure display: `API not reachable`
 - API failure never modifies transaction records
@@ -20,9 +20,9 @@ A personal and educational stock transaction tracker built with HTML, CSS, JavaS
 - CSS in independent file
 - Calculation functions isolated in `js/calculations.js`
 
-## Important note about Yahoo Finance
+## Important note about Finnhub
 
-The Yahoo Finance quote endpoint is used only for personal and educational use. It is unofficial and may break, be blocked by CORS, or become unreachable. When this happens, the app displays `API not reachable` and keeps all transaction records unchanged.
+The Finnhub quote API is used only for temporary current-price display. If the API key is missing, rate-limited, blocked, or unreachable, the app displays `API not reachable` and keeps all transaction records unchanged.
 
 
 ## Automatic Supabase login behavior
@@ -122,7 +122,7 @@ Transaction fee
 Temporary display data:
 
 ```text
-Yahoo Finance live price
+Finnhub live price
 Manual current price fallback
 Unrealized gain/loss display
 ```
@@ -221,3 +221,47 @@ The dashboard now has separate BUY and SELL fee rules.
 - Existing saved transaction fees are never recalculated or rewritten when fee rules change.
 
 If you want fee settings to sync across devices, rerun the `fee_settings` part of `supabase-schema.sql` in the Supabase SQL editor.
+
+## Finnhub market price API
+
+Current market prices are fetched from Finnhub using `js/marketPriceService.js`.
+
+To enable live prices, open `js/marketPriceService.js` and replace:
+
+```js
+const FINNHUB_API_KEY = 'PASTE_YOUR_FINNHUB_API_KEY_HERE';
+```
+
+with your Finnhub API key.
+
+Because this is a browser-only app, the API key is visible in the frontend. For production use, move the Finnhub request to a backend endpoint or Supabase Edge Function and keep the secret key server-side.
+
+## AI company analysis with Gemini
+
+This build includes a dashboard panel that sends prompt templates to the Supabase Edge Function named `generate-company-analysis`.
+
+Expected Edge Function request body:
+
+```json
+{
+  "promptId": "competitive-analysis",
+  "promptText": "Final rendered prompt text",
+  "parameters": {
+    "companyName": "Apple Inc.",
+    "ticker": "AAPL"
+  }
+}
+```
+
+Expected Edge Function response body:
+
+```json
+{
+  "success": true,
+  "result": "Markdown analysis result from Gemini"
+}
+```
+
+Prompt templates are stored in `ai/prompts/`, and metadata for UI fields is stored in `js/ai/promptRegistry.js`.
+
+Optional report persistence uses the `analysis_reports` table. If the table is not installed, the app still displays the result and saves the latest reports in localStorage. Run `supabase-analysis-reports-schema.sql` to enable Supabase persistence.
