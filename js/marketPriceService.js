@@ -3,9 +3,11 @@ import { supabaseClient, isSupabaseConfigured } from './supabaseClient.js';
 
 // Supabase Edge Function used to fetch current prices from Finnhub.
 // The Finnhub API key should be stored as a Supabase secret named FINNHUB_API_KEY.
-const STOCK_PRICE_FUNCTION_NAME = 'get-stock-price';
+const DEFAULT_STOCK_PRICE_FUNCTION_NAME = 'get-stock-price';
+const STOCK_PRICE_FUNCTION_NAME = window.STOCK_TRACKER_CONFIG?.stockPriceFunctionName || DEFAULT_STOCK_PRICE_FUNCTION_NAME;
 const MARKET_PRICE_CACHE_KEY = 'stockTrackerLastMarketPrices';
 const MARKET_PRICE_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const MARKET_PRICE_FUNCTION_DISABLED_KEY = 'stockTrackerStockPriceFunctionDisabled';
 
 function normalizeTicker(ticker) {
   return String(ticker || '').trim().toUpperCase();
@@ -41,6 +43,67 @@ function normalizePriceResponse(data) {
   }
 
   return price;
+}
+
+function isStockPriceFunctionTemporarilyDisabled() {
+  try {
+    const storedStatus = JSON.parse(localStorage.getItem(MARKET_PRICE_FUNCTION_DISABLED_KEY) || 'null');
+    return storedStatus?.functionName === STOCK_PRICE_FUNCTION_NAME && storedStatus?.disabled === true;
+  } catch (error) {
+    console.warn('Unable to read market price function status.', error);
+    return false;
+  }
+}
+
+function disableStockPriceFunction(reason) {
+  try {
+    localStorage.setItem(
+      MARKET_PRICE_FUNCTION_DISABLED_KEY,
+      JSON.stringify({
+        functionName: STOCK_PRICE_FUNCTION_NAME,
+        disabled: true,
+        reason,
+        disabledAt: new Date().toISOString()
+      })
+    );
+  } catch (error) {
+    console.warn('Unable to save market price function status.', error);
+  }
+}
+
+function enableStockPriceFunction() {
+  try {
+    localStorage.removeItem(MARKET_PRICE_FUNCTION_DISABLED_KEY);
+  } catch (error) {
+    console.warn('Unable to clear market price function status.', error);
+  }
+}
+
+async function getSupabaseFunctionErrorDetails(error) {
+  const details = {
+    message: error?.message || 'Supabase Edge Function request failed.',
+    status: error?.context?.status ?? null,
+    bodyText: ''
+  };
+
+  try {
+    if (error?.context && typeof error.context.clone === 'function') {
+      details.bodyText = await error.context.clone().text();
+      return details;
+    }
+
+    if (error?.context && typeof error.context.text === 'function') {
+      details.bodyText = await error.context.text();
+    }
+  } catch (readError) {
+    console.warn('Unable to read Supabase function error response.', readError);
+  }
+
+  return details;
+}
+
+function isFunctionNotFoundError(errorDetails) {
+  return errorDetails.status === 404 || /NOT_FOUND|function was not found|Requested function was not found/i.test(errorDetails.bodyText);
 }
 
 function loadCachedMarketPrices() {
@@ -113,13 +176,26 @@ export async function fetchCurrentMarketPrice(ticker) {
     );
   }
 
+  if (isStockPriceFunctionTemporarilyDisabled()) {
+    return buildCachedFallbackResult(
+      normalizedTicker,
+      `Supabase Edge Function ${STOCK_PRICE_FUNCTION_NAME} is not deployed`
+    );
+  }
+
   try {
     const { data, error } = await supabaseClient.functions.invoke(STOCK_PRICE_FUNCTION_NAME, {
       body: { symbol: normalizedTicker }
     });
 
     if (error) {
-      throw new Error(error.message || 'Supabase Edge Function request failed.');
+      const errorDetails = await getSupabaseFunctionErrorDetails(error);
+
+      if (isFunctionNotFoundError(errorDetails)) {
+        disableStockPriceFunction(errorDetails.bodyText || errorDetails.message);
+      }
+
+      throw new Error(errorDetails.bodyText || errorDetails.message);
     }
 
     if (data?.error) {
@@ -127,18 +203,19 @@ export async function fetchCurrentMarketPrice(ticker) {
     }
 
     const marketPrice = normalizePriceResponse(data);
+    enableStockPriceFunction();
     saveCachedMarketPrice(normalizedTicker, marketPrice);
 
     return buildReadyPriceResult(
       normalizedTicker,
       marketPrice,
-      'Supabase Edge Function: get-stock-price'
+      `Supabase Edge Function: ${STOCK_PRICE_FUNCTION_NAME}`
     );
   } catch (error) {
     console.warn(`Market price API not reachable for ${normalizedTicker}.`, error);
     return buildCachedFallbackResult(
       normalizedTicker,
-      'Supabase Edge Function not reachable'
+      `Supabase Edge Function ${STOCK_PRICE_FUNCTION_NAME} not reachable`
     );
   }
 }

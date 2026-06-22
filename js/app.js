@@ -61,6 +61,11 @@ let transactions = [];
 let latestMarketPriceResults = {};
 let feeRules = getDefaultFeeRules();
 let isAutomaticallyUpdatingTransactionFee = false;
+let dashboardInitialized = false;
+let dashboardEventsBound = false;
+let unsubscribeAuthStateChange = null;
+let activeDashboardRefreshId = 0;
+
 
 function getMissingFeeRuleInputNames() {
   const missingInputNames = [];
@@ -156,30 +161,59 @@ initializeDashboard().catch(error => {
 });
 
 async function initializeDashboard() {
-  bindDashboardEvents();
-  renderFeeRuleInputs();
-  await restoreSavedSession();
-  prefillRememberedEmail();
-  await updateAuthenticationPanel();
-  onAuthStateChange(async () => {
-    try {
-      await updateAuthenticationPanel();
-      feeRules = await loadFeeRules(getDefaultFeeRules());
-      renderFeeRuleInputs();
-      updateTransactionFeeFromRule();
-      transactions = await loadInitialTransactions();
-      await refreshDashboard();
-    } catch (error) {
-      showMessage(messageBox, `Authentication refresh failed: ${getErrorMessage(error)}`, 'error');
-    }
-  });
-  feeRules = await loadFeeRules(getDefaultFeeRules());
-  renderFeeRuleInputs();
-  transactions = await loadInitialTransactions();
-  updateTransactionActionUi();
-  updateTransactionFeeFromRule();
-  await refreshDashboard();
+  // The dashboard can be re-entered through browser navigation or repeated script loads.
+  // Keep startup idempotent so event handlers and auth listeners are not registered twice.
+  if (dashboardInitialized) {
+    return;
+  }
+
+  dashboardInitialized = true;
+
+  try {
+    bindDashboardEvents();
+    renderFeeRuleInputs();
+    prefillRememberedEmail();
+
+    await restoreSavedSession();
+    await updateAuthenticationPanel();
+    registerDashboardAuthListenerOnce();
+
+    feeRules = await loadFeeRules(getDefaultFeeRules());
+    renderFeeRuleInputs();
+    transactions = await loadInitialTransactions();
+    updateTransactionActionUi();
+    updateTransactionFeeFromRule();
+    await refreshDashboard();
+  } catch (error) {
+    dashboardInitialized = false;
+    throw error;
+  }
 }
+
+function registerDashboardAuthListenerOnce() {
+  if (unsubscribeAuthStateChange) return;
+  unsubscribeAuthStateChange = onAuthStateChange(handleDashboardAuthChange);
+}
+
+async function handleDashboardAuthChange() {
+  try {
+    await updateAuthenticationPanel();
+    feeRules = await loadFeeRules(getDefaultFeeRules());
+    renderFeeRuleInputs();
+    updateTransactionFeeFromRule();
+    transactions = await loadInitialTransactions();
+    await refreshDashboard();
+  } catch (error) {
+    showMessage(messageBox, `Authentication refresh failed: ${getErrorMessage(error)}`, 'error');
+  }
+}
+
+window.addEventListener('pagehide', () => {
+  if (unsubscribeAuthStateChange) {
+    unsubscribeAuthStateChange();
+    unsubscribeAuthStateChange = null;
+  }
+});
 
 function prefillRememberedEmail() {
   if (!authEmailInput) return;
@@ -187,17 +221,20 @@ function prefillRememberedEmail() {
 }
 
 function bindDashboardEvents() {
+  if (dashboardEventsBound) return;
+  dashboardEventsBound = true;
+
   bindLiveValidationCleanup(transactionForm);
   bindLiveValidationCleanup(breakEvenForm);
-  transactionTypeSelect.addEventListener('change', handleTransactionTypeChange);
-  sellTickerSelect.addEventListener('change', handleSellTickerSelection);
-  transactionForm.addEventListener('submit', handleTransactionFormSubmit);
+  transactionTypeSelect?.addEventListener('change', handleTransactionTypeChange);
+  sellTickerSelect?.addEventListener('change', handleSellTickerSelection);
+  transactionForm?.addEventListener('submit', handleTransactionFormSubmit);
   transactionForm?.sharePrice?.addEventListener('input', updateTransactionFeeFromRule);
   transactionForm?.quantity?.addEventListener('input', updateTransactionFeeFromRule);
   transactionFeeInput?.addEventListener('input', handleTransactionFeeManualInput);
   useFeeRuleForTransactionInput?.addEventListener('change', updateTransactionFeeFromRule);
-  exportButton.addEventListener('click', () => exportTransactionsAsJson(transactions));
-  importInput.addEventListener('change', handleImportTransactions);
+  exportButton?.addEventListener('click', () => exportTransactionsAsJson(transactions));
+  importInput?.addEventListener('change', handleImportTransactions);
   authForm?.addEventListener('submit', event => sendLoginLinkFromForm(event, authEmailInput, messageBox));
   signOutButton?.addEventListener('click', handleSignOut);
   breakEvenForm?.addEventListener('submit', handleBreakEvenFormSubmit);
@@ -232,9 +269,16 @@ async function handleSignOut() {
 
 
 async function refreshDashboard() {
+  const refreshId = ++activeDashboardRefreshId;
   const basePortfolio = calculatePortfolioFromTransactions(transactions);
   const tickers = basePortfolio.holdings.map(holding => holding.ticker);
-  latestMarketPriceResults = await fetchCurrentMarketPrices(tickers);
+  const marketPriceResults = await fetchCurrentMarketPrices(tickers);
+
+  // If another refresh started while prices were loading, ignore this older result.
+  // This prevents tab/auth re-entry races from rendering stale dashboard state.
+  if (refreshId !== activeDashboardRefreshId) return;
+
+  latestMarketPriceResults = marketPriceResults;
   const marketPricesByTicker = createMarketPricesMap(latestMarketPriceResults);
   const manualPricesByTicker = loadManualCurrentPrices();
   const portfolio = calculatePortfolioWithMarketPrices(basePortfolio, marketPricesByTicker, manualPricesByTicker);

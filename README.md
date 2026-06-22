@@ -265,3 +265,25 @@ Expected Edge Function response body:
 Prompt templates are stored in `ai/prompts/`, and metadata for UI fields is stored in `js/ai/promptRegistry.js`.
 
 Optional report persistence uses the `analysis_reports` table. If the table is not installed, the app still displays the result and saves the latest reports in localStorage. Run `supabase-analysis-reports-schema.sql` to enable Supabase persistence.
+
+## Supabase Edge Function for market prices
+
+The dashboard calls a Supabase Edge Function named `get-stock-price`.
+If the browser console shows `functions/v1/get-stock-price 404`, deploy the function included in this project:
+
+```bash
+supabase secrets set FINNHUB_API_KEY=YOUR_FINNHUB_KEY
+supabase functions deploy get-stock-price --no-verify-jwt
+```
+
+The function source is located at:
+
+```text
+supabase/functions/get-stock-price/index.ts
+```
+
+After deploying, clear the temporary disabled flag in the browser if needed:
+
+```js
+localStorage.removeItem('stockTrackerStockPriceFunctionDisabled')
+```
