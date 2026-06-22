@@ -16,17 +16,33 @@ export function renderSummary(portfolio, elements) {
 }
 
 
+function getTransactionDate(transaction) {
+  return transaction.date || transaction.transactionDate || transaction.transaction_date || '';
+}
+
+function getTransactionFee(transaction) {
+  // Support both the app's camelCase model and older/imported/Supabase-style field names.
+  // This prevents fee summaries from showing $0 when imported rows use `fee` or `transaction_fee`.
+  return Number(
+    transaction.transactionFee ??
+    transaction.transaction_fee ??
+    transaction.fee ??
+    0
+  );
+}
+
 export function calculateTotalTransactionFees(transactions, dateRange = {}) {
   const startDate = dateRange.startDate || '';
   const endDate = dateRange.endDate || '';
 
   return transactions
     .filter(transaction => {
-      if (startDate && transaction.date < startDate) return false;
-      if (endDate && transaction.date > endDate) return false;
+      const transactionDate = getTransactionDate(transaction);
+      if (startDate && transactionDate < startDate) return false;
+      if (endDate && transactionDate > endDate) return false;
       return true;
     })
-    .reduce((totalFees, transaction) => totalFees + Number(transaction.transactionFee || 0), 0);
+    .reduce((totalFees, transaction) => totalFees + getTransactionFee(transaction), 0);
 }
 
 export function renderCompanyFeeSummary(transactions, elements, dateRange = {}) {
@@ -71,10 +87,11 @@ export function calculateAmountPlacedInCompany(holding) {
   return holding.averagePrice * holding.remainingQuantity;
 }
 
-function createAmountPlacedMetric(holding) {
-  if (holding.remainingQuantity <= 0) return '';
+function createAmountPlacedInlineText(holding) {
+  const amountPlaced = calculateAmountPlacedInCompany(holding);
+  if (!Number.isFinite(amountPlaced) || amountPlaced === 0) return '';
 
-  return `<span>Amount placed: ${formatMoney(calculateAmountPlacedInCompany(holding))}</span>`;
+  return ` <span class="amount-placed-inline">Amount placed: ${formatMoney(amountPlaced)}</span>`;
 }
 
 export function renderCompanyList(portfolio, companyListElement, onManualPriceSubmit) {
@@ -106,14 +123,13 @@ export function renderCompanyList(portfolio, companyListElement, onManualPriceSu
       <div class="company-card-header">
         <div>
           <h3>${holding.companyName} (${holding.ticker})</h3>
-          <p>Remaining shares: <strong>${formatQuantity(holding.remainingQuantity)}</strong></p>
+          <p>Remaining shares: <strong>${formatQuantity(holding.remainingQuantity)}</strong>${createAmountPlacedInlineText(holding)}</p>
         </div>
         <span class="${getGainLossClass(holding.realizedGainLoss + (holding.unrealizedGainLoss || 0))}">
           ${formatMoney(holding.realizedGainLoss + (holding.unrealizedGainLoss || 0))}
         </span>
       </div>
       <div class="company-metrics">
-        ${createAmountPlacedMetric(holding)}
         <span>Average price: ${formatMoney(holding.averagePrice)}</span>
         <span>Current price: ${currentPriceText}</span>
         <span>Realized: <b class="${getGainLossClass(holding.realizedGainLoss)}">${formatMoney(holding.realizedGainLoss)}</b></span>

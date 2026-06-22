@@ -61,6 +61,22 @@ const resetCompanyFeeRangeButton = document.querySelector('#resetCompanyFeeRange
 let transactions = [];
 let latestMarketPriceResults = {};
 let feeRules = getDefaultFeeRules();
+
+const DEFAULT_COMPANY_FEE_START_DATE = '2026-01-01';
+
+function getTodayDateString() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function setDefaultCompanyFeeDateRange() {
+  if (companyFeeStartDateInput && !companyFeeStartDateInput.value) {
+    companyFeeStartDateInput.value = DEFAULT_COMPANY_FEE_START_DATE;
+  }
+
+  if (companyFeeEndDateInput && !companyFeeEndDateInput.value) {
+    companyFeeEndDateInput.value = getTodayDateString();
+  }
+}
 let isAutomaticallyUpdatingTransactionFee = false;
 
 function getMissingFeeRuleInputNames() {
@@ -178,6 +194,7 @@ async function initializeDashboard() {
   renderFeeRuleInputs();
   transactions = await loadInitialTransactions();
   initializeAiAnalysisPanel({ getTransactions: () => transactions });
+  setDefaultCompanyFeeDateRange();
   updateTransactionActionUi();
   updateTransactionFeeFromRule();
   await refreshDashboard();
@@ -273,8 +290,8 @@ function getCompanyFeeDateRange() {
 }
 
 function handleResetCompanyFeeRange() {
-  if (companyFeeStartDateInput) companyFeeStartDateInput.value = '';
-  if (companyFeeEndDateInput) companyFeeEndDateInput.value = '';
+  if (companyFeeStartDateInput) companyFeeStartDateInput.value = DEFAULT_COMPANY_FEE_START_DATE;
+  if (companyFeeEndDateInput) companyFeeEndDateInput.value = getTodayDateString();
   refreshCompanyFeeSummary();
 }
 
