@@ -1,10 +1,11 @@
 import { API_STATUS } from './constants.js';
-import { supabaseClient, isSupabaseConfigured } from './supabaseClient.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY, isSupabaseConfigured } from './supabaseClient.js';
 
 // Supabase Edge Function used to fetch current prices from Finnhub.
 // The Finnhub API key should be stored as a Supabase secret named FINNHUB_API_KEY.
 const DEFAULT_STOCK_PRICE_FUNCTION_NAME = 'get-stock-price';
 const STOCK_PRICE_FUNCTION_NAME = window.STOCK_TRACKER_CONFIG?.stockPriceFunctionName || DEFAULT_STOCK_PRICE_FUNCTION_NAME;
+const STOCK_PRICE_FUNCTION_URL = `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/${STOCK_PRICE_FUNCTION_NAME}`;
 const MARKET_PRICE_CACHE_KEY = 'stockTrackerLastMarketPrices';
 const MARKET_PRICE_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const MARKET_PRICE_FUNCTION_DISABLED_KEY = 'stockTrackerStockPriceFunctionDisabled';
@@ -169,7 +170,7 @@ export async function fetchCurrentMarketPrice(ticker) {
     return buildUnavailablePriceResult(normalizedTicker, 'Missing ticker symbol');
   }
 
-  if (!isSupabaseConfigured() || !supabaseClient) {
+  if (!isSupabaseConfigured()) {
     return buildCachedFallbackResult(
       normalizedTicker,
       'Supabase is not configured for live market prices'
@@ -184,12 +185,35 @@ export async function fetchCurrentMarketPrice(ticker) {
   }
 
   try {
-    const { data, error } = await supabaseClient.functions.invoke(STOCK_PRICE_FUNCTION_NAME, {
-      body: { symbol: normalizedTicker }
+    // Use the explicit Edge Function URL instead of supabase.functions.invoke so every
+    // live-price request always targets the same endpoint:
+    // https://<project-ref>.supabase.co/functions/v1/get-stock-price
+    const response = await fetch(STOCK_PRICE_FUNCTION_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        'x-client-info': 'stock-tracker-web'
+      },
+      body: JSON.stringify({ symbol: normalizedTicker })
     });
 
-    if (error) {
-      const errorDetails = await getSupabaseFunctionErrorDetails(error);
+    const responseText = await response.text();
+    let data = null;
+
+    try {
+      data = responseText ? JSON.parse(responseText) : null;
+    } catch (parseError) {
+      throw new Error(`Stock price function returned non-JSON response (${response.status}).`);
+    }
+
+    if (!response.ok) {
+      const errorDetails = {
+        status: response.status,
+        message: data?.error || `Stock price function returned HTTP ${response.status}.`,
+        bodyText: responseText
+      };
 
       if (isFunctionNotFoundError(errorDetails)) {
         disableStockPriceFunction(errorDetails.bodyText || errorDetails.message);
