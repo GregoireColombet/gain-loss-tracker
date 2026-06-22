@@ -110,6 +110,10 @@ export const PARAMETER_DEFINITIONS = {
   economicConcern: { label: 'Biggest economic concern', type: 'textarea', placeholder: 'Inflation, recession, rates, US dollar, geopolitical risk, China slowdown', required: true }
 };
 
-export function findPromptById(promptId) {
+export function findDefaultPromptById(promptId) {
   return ANALYSIS_PROMPTS.find(prompt => prompt.id === promptId) || ANALYSIS_PROMPTS[0];
+}
+
+export function findPromptById(promptId) {
+  return findDefaultPromptById(promptId);
 }

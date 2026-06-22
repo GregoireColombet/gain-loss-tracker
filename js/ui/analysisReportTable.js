@@ -139,6 +139,7 @@ function createReportRow(report) {
   row.append(
     createCell(formatDateTime(report.createdAt)),
     createCell(report.promptTitle || report.promptId || 'Analysis'),
+    createStatusCell(report),
     createCell(report.companyName || '—'),
     createCell(report.ticker || '—'),
     createCell(getPrimaryParameterSummary(report)),
@@ -146,6 +147,17 @@ function createReportRow(report) {
   );
 
   return row;
+}
+
+
+function createStatusCell(report) {
+  const cell = document.createElement('td');
+  const badge = document.createElement('span');
+  const status = report.status || 'completed';
+  badge.className = `analysis-status-badge ${status === 'failed' ? 'failed' : 'completed'}`;
+  badge.textContent = status === 'failed' ? 'Failed' : 'Completed';
+  cell.append(badge);
+  return cell;
 }
 
 function createActionsCell(report) {

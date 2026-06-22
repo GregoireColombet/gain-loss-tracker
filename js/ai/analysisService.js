@@ -1,55 +1,150 @@
-import { supabaseClient, isSupabaseConfigured } from '../supabaseClient.js';
+import { SUPABASE_ANON_KEY, SUPABASE_URL, supabaseClient, isSupabaseConfigured } from '../supabaseClient.js';
 import { getCurrentUser } from '../authService.js';
-import { findPromptById } from './promptRegistry.js';
+import { findDefaultPromptById } from './promptRegistry.js';
+import { findPromptDefinitionById, loadAvailablePrompts } from './promptStorage.js';
 import { loadPromptTemplate, renderPromptTemplate } from './promptTemplateRenderer.js';
+import { AnalysisGenerationError, createAnalysisError, getErrorCodeFromGeminiPayload, getErrorMessageFromGeminiPayload, getStatusCodeFromGeminiPayload, isRetryableAnalysisError } from './geminiErrorHandler.js';
 
 const ANALYSIS_FUNCTION_NAME = 'generate-company-analysis';
 const LOCAL_ANALYSIS_STORAGE_KEY = 'stockTrackerAnalysisReports';
 const MAX_LOCAL_REPORTS = 25;
+const MAX_ANALYSIS_RETRY_ATTEMPTS = 3;
+const ANALYSIS_RETRY_DELAYS_MS = [2000, 5000, 10000];
 
 export async function generateCompanyAnalysis(promptId, parameters = {}) {
   if (!isSupabaseConfigured() || !supabaseClient) {
     throw new Error('Supabase must be configured before AI analysis can run.');
   }
 
-  const promptDefinition = findPromptById(promptId);
+  const promptDefinition = await findPromptDefinitionById(promptId);
+  if (!promptDefinition) throw new Error('Selected analysis prompt was not found.');
   const promptTemplate = await loadPromptTemplate(promptDefinition);
   const promptText = renderPromptTemplate(promptTemplate, parameters);
 
-  const { data, error } = await supabaseClient.functions.invoke(ANALYSIS_FUNCTION_NAME, {
-    body: {
-      promptId,
-      promptText,
-      parameters
+  try {
+    const data = await invokeAnalysisFunctionWithRetry({ promptId, promptText, parameters });
+    const result = data?.result || data?.analysis || data?.text || '';
+
+    if (!String(result).trim()) {
+      throw new AnalysisGenerationError({
+        title: 'Empty AI response',
+        message: 'Google AI returned an empty analysis. Try again or reduce the prompt complexity.',
+        retryable: true
+      });
     }
+
+    const report = createAnalysisReport({
+      promptId,
+      promptTitle: promptDefinition.title,
+      parameters,
+      resultMarkdown: result,
+      status: 'completed'
+    });
+
+    await saveAnalysisReport(report);
+    return report;
+  } catch (error) {
+    const analysisError = createAnalysisError(error);
+    const failedReport = createAnalysisReport({
+      promptId,
+      promptTitle: promptDefinition.title,
+      parameters,
+      resultMarkdown: '',
+      status: 'failed',
+      errorCode: analysisError.status || analysisError.code || 'UNKNOWN',
+      errorMessage: analysisError.userMessage
+    });
+
+    await saveAnalysisReport(failedReport);
+    analysisError.failedReport = failedReport;
+    throw analysisError;
+  }
+}
+
+async function invokeAnalysisFunctionWithRetry(requestBody) {
+  let lastError;
+
+  for (let attempt = 1; attempt <= MAX_ANALYSIS_RETRY_ATTEMPTS; attempt += 1) {
+    try {
+      return await invokeAnalysisFunction(requestBody, attempt);
+    } catch (error) {
+      lastError = createAnalysisError(error);
+
+      if (!isRetryableAnalysisError(lastError) || attempt === MAX_ANALYSIS_RETRY_ATTEMPTS) {
+        throw lastError;
+      }
+
+      await delay(ANALYSIS_RETRY_DELAYS_MS[attempt - 1] || 10000);
+    }
+  }
+
+  throw lastError;
+}
+
+async function invokeAnalysisFunction(requestBody, attemptNumber = 1) {
+  const endpoint = `${SUPABASE_URL.replace(/\/$/, '')}/functions/v1/${ANALYSIS_FUNCTION_NAME}`;
+  const session = await supabaseClient.auth.getSession().catch(() => ({ data: { session: null } }));
+  const accessToken = session?.data?.session?.access_token || SUPABASE_ANON_KEY;
+
+  const response = await fetch(endpoint, {
+    method: 'POST',
+    headers: {
+      apikey: SUPABASE_ANON_KEY,
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+      'x-client-info': `stock-tracker-analysis-attempt-${attemptNumber}`
+    },
+    body: JSON.stringify(requestBody)
   });
 
-  if (error) {
-    throw new Error(error.message || 'AI analysis function is not reachable.');
+  const data = await readJsonResponse(response);
+
+  if (!response.ok || data?.success === false || data?.error) {
+    throw createAnalysisError({
+      status: getStatusCodeFromGeminiPayload(data) || response.status,
+      code: getErrorCodeFromGeminiPayload(data) || response.statusText,
+      message: getErrorMessageFromGeminiPayload(data) || data?.message || data?.error || response.statusText,
+      details: data,
+      rawError: data
+    });
   }
 
-  if (data?.error) {
-    throw new Error(data.error);
-  }
+  return data;
+}
 
-  const result = data?.result || data?.analysis || data?.text || '';
-  if (!String(result).trim()) {
-    throw new Error('AI analysis returned an empty result.');
-  }
+async function readJsonResponse(response) {
+  const text = await response.text();
+  if (!text) return {};
 
-  const report = {
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    return {
+      success: false,
+      message: text,
+      parseError: error instanceof Error ? error.message : String(error)
+    };
+  }
+}
+
+function createAnalysisReport({ promptId, promptTitle, parameters = {}, resultMarkdown = '', status = 'completed', errorCode = '', errorMessage = '' }) {
+  return {
     id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
     promptId,
-    promptTitle: promptDefinition.title,
+    promptTitle,
     ticker: parameters.ticker || '',
     companyName: parameters.companyName || '',
     parameters,
-    resultMarkdown: result,
+    resultMarkdown,
+    status,
+    errorCode: String(errorCode || ''),
+    errorMessage: String(errorMessage || ''),
     createdAt: new Date().toISOString()
   };
+}
 
-  await saveAnalysisReport(report);
-  return report;
+function delay(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 export async function saveAnalysisReport(report) {
@@ -63,17 +158,14 @@ export async function saveAnalysisReport(report) {
   try {
     const { data, error } = await supabaseClient
       .from('analysis_reports')
-      .insert({
-        user_id: currentUser.id,
-        ticker: report.ticker,
-        company_name: report.companyName,
-        prompt_id: report.promptId,
-        parameters: report.parameters,
-        result_markdown: report.resultMarkdown,
-        created_at: report.createdAt
-      })
+      .insert(buildSupabaseAnalysisReportPayload(report, currentUser.id))
       .select('id')
       .single();
+
+    if (error?.code === 'PGRST204') {
+      await saveAnalysisReportUsingLegacyColumns(report, currentUser.id);
+      return;
+    }
 
     if (error) throw error;
 
@@ -84,6 +176,50 @@ export async function saveAnalysisReport(report) {
   } catch (error) {
     // Keep the generated report visible even if the optional persistence table is not available yet.
     console.warn('AI report saved locally, but Supabase persistence failed.', error);
+  }
+}
+
+
+function buildSupabaseAnalysisReportPayload(report, userId) {
+  return {
+    user_id: userId,
+    ticker: report.ticker,
+    company_name: report.companyName,
+    prompt_id: report.promptId,
+    parameters: report.parameters,
+    result_markdown: report.resultMarkdown || '',
+    status: report.status || 'completed',
+    error_code: report.errorCode || null,
+    error_message: report.errorMessage || null,
+    created_at: report.createdAt
+  };
+}
+
+async function saveAnalysisReportUsingLegacyColumns(report, userId) {
+  const { data, error } = await supabaseClient
+    .from('analysis_reports')
+    .insert({
+      user_id: userId,
+      ticker: report.ticker,
+      company_name: report.companyName,
+      prompt_id: report.promptId,
+      parameters: {
+        ...(report.parameters || {}),
+        analysisStatus: report.status || 'completed',
+        analysisErrorCode: report.errorCode || '',
+        analysisErrorMessage: report.errorMessage || ''
+      },
+      result_markdown: report.resultMarkdown || '',
+      created_at: report.createdAt
+    })
+    .select('id')
+    .single();
+
+  if (error) throw error;
+
+  if (data?.id) {
+    report.supabaseId = data.id;
+    updateLocalAnalysisReport(report);
   }
 }
 
@@ -118,15 +254,12 @@ export async function loadAnalysisReportsWithStatus() {
   status.userEmail = currentUser.email || '';
 
   try {
-    const { data, error } = await supabaseClient
-      .from('analysis_reports')
-      .select('id, user_id, ticker, company_name, prompt_id, parameters, result_markdown, created_at')
-      .eq('user_id', currentUser.id)
-      .order('created_at', { ascending: false });
+    const { data, error } = await selectSupabaseAnalysisReports(currentUser.id);
 
     if (error) throw error;
 
-    const remoteReports = (data || []).map(mapSupabaseAnalysisReport);
+    const promptMap = await loadPromptTitleMap();
+    const remoteReports = (data || []).map(row => mapSupabaseAnalysisReport(row, promptMap));
     status.source = 'supabase';
     status.remoteCount = remoteReports.length;
 
@@ -192,13 +325,31 @@ function deleteLocalAnalysisReport(reportId) {
 }
 
 
+async function selectSupabaseAnalysisReports(userId) {
+  const extendedResult = await supabaseClient
+    .from('analysis_reports')
+    .select('id, user_id, ticker, company_name, prompt_id, parameters, result_markdown, status, error_code, error_message, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (!extendedResult.error?.message?.includes('status') && extendedResult.error?.code !== 'PGRST204') {
+    return extendedResult;
+  }
+
+  return supabaseClient
+    .from('analysis_reports')
+    .select('id, user_id, ticker, company_name, prompt_id, parameters, result_markdown, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+}
+
 function getSupabaseErrorMessage(error) {
   if (!error) return 'Unknown error';
   return error.message || error.details || String(error);
 }
 
-function mapSupabaseAnalysisReport(row) {
-  const promptDefinition = findPromptById(row.prompt_id);
+function mapSupabaseAnalysisReport(row, promptMap = new Map()) {
+  const promptDefinition = promptMap.get(row.prompt_id) || findDefaultPromptById(row.prompt_id);
 
   return {
     id: row.id,
@@ -209,8 +360,21 @@ function mapSupabaseAnalysisReport(row) {
     companyName: row.company_name || row.parameters?.companyName || '',
     parameters: row.parameters || {},
     resultMarkdown: row.result_markdown || '',
+    status: row.status || row.parameters?.analysisStatus || 'completed',
+    errorCode: row.error_code || row.parameters?.analysisErrorCode || '',
+    errorMessage: row.error_message || row.parameters?.analysisErrorMessage || '',
     createdAt: row.created_at
   };
+}
+
+async function loadPromptTitleMap() {
+  try {
+    const prompts = await loadAvailablePrompts();
+    return new Map(prompts.map(prompt => [prompt.id, prompt]));
+  } catch (error) {
+    console.warn('Unable to load prompt titles for reports.', error);
+    return new Map();
+  }
 }
 
 function mergeReports(primaryReports, fallbackReports) {

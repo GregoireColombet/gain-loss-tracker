@@ -55,6 +55,7 @@
             <tr>
               <th scope="col" data-sort-key="createdAt"><button type="button" class="table-sort-button">Generated</button></th>
               <th scope="col" data-sort-key="promptTitle"><button type="button" class="table-sort-button">Report type</button></th>
+              <th scope="col">Status</th>
               <th scope="col" data-sort-key="companyName"><button type="button" class="table-sort-button">Company</button></th>
               <th scope="col" data-sort-key="ticker"><button type="button" class="table-sort-button">Ticker</button></th>
               <th scope="col">Parameters</th>
@@ -85,6 +86,10 @@
           </label>
         </div>
         <p id="aiPromptDescription" class="form-help-text"></p>
+        <details id="aiPromptPreviewDetails" class="prompt-preview-details">
+          <summary>Read selected prompt</summary>
+          <pre id="aiPromptPreview" class="prompt-preview-box"></pre>
+        </details>
         <div id="aiParameterFields" class="form-grid ai-parameter-fields"></div>
         <label class="ai-extra-instructions">
           Extra instructions optional
@@ -95,6 +100,84 @@
         </div>
       </form>
       <div id="aiAnalysisStatus" class="message-box info" hidden></div>
+    </section>
+
+
+    <section class="panel prompt-editor-panel">
+      <div class="section-header">
+        <div>
+          <h2>Prompt editor</h2>
+          <p>Create a new analysis prompt from blank, or edit a default prompt by saving a custom copy.</p>
+        </div>
+        <button id="promptEditorNewButton" type="button" class="secondary-button">New blank prompt</button>
+      </div>
+
+      <div class="prompt-editor-toolbar">
+        <label>
+          Prompt to edit
+          <select id="promptEditorSelect"></select>
+        </label>
+        <div class="prompt-editor-toolbar-actions">
+          <button id="promptEditorDuplicateButton" type="button" class="secondary-button">Duplicate selected</button>
+          <button id="promptEditorDeleteButton" type="button" class="danger-button" disabled>Delete custom prompt</button>
+        </div>
+      </div>
+
+      <p id="promptEditorDefaultNotice" class="form-help-text warning-text" hidden></p>
+
+      <form id="promptEditorForm" class="prompt-editor-form" novalidate>
+        <input id="promptEditorId" type="hidden">
+        <div class="form-grid">
+          <label>
+            Prompt title
+            <input id="promptEditorTitle" type="text" placeholder="My Semiconductor Stock Analysis" required>
+          </label>
+          <label>
+            Category
+            <input id="promptEditorCategory" type="text" placeholder="Company Analysis / Technical / Portfolio">
+          </label>
+        </div>
+
+        <label>
+          Description
+          <input id="promptEditorDescription" type="text" placeholder="Short explanation shown in the prompt dropdown.">
+        </label>
+
+        <label>
+          Prompt text
+          <textarea id="promptEditorText" rows="12" placeholder="Write your reusable prompt. Use placeholders like {{ticker}}, {{companyName}}, or {{riskTolerance}}." required></textarea>
+        </label>
+
+        <div class="prompt-parameter-builder">
+          <div class="section-header compact-section-header">
+            <div>
+              <h3>Required parameters</h3>
+              <p>These fields generate the form users fill before running the analysis.</p>
+            </div>
+            <button id="promptParameterAddButton" type="button" class="secondary-button">+ Add parameter</button>
+          </div>
+          <div class="prompt-parameter-grid-header" aria-hidden="true">
+            <span>Name</span>
+            <span>Label</span>
+            <span>Type</span>
+            <span>Placeholder</span>
+            <span>Options</span>
+            <span>Required</span>
+            <span></span>
+          </div>
+          <div id="promptParameterRows" class="prompt-parameter-rows"></div>
+        </div>
+
+        <details class="prompt-preview-details">
+          <summary>Preview prompt editor content</summary>
+          <pre id="promptEditorPreview" class="prompt-preview-box"></pre>
+        </details>
+
+        <div class="form-actions">
+          <button type="submit">Save custom prompt</button>
+        </div>
+      </form>
+      <div id="promptEditorStatus" class="message-box info" hidden></div>
     </section>
 
     <section id="analysisReportViewer" class="panel analysis-report-viewer" aria-live="polite"></section>

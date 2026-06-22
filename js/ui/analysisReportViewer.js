@@ -13,6 +13,11 @@ export function renderAnalysisReportViewer(report, container = document.querySel
     return;
   }
 
+  if (report.status === 'failed') {
+    container.replaceChildren(createFailedReportViewer(report));
+    return;
+  }
+
   const sections = splitMarkdownIntoSections(report.resultMarkdown || '');
   const summaryCards = buildSummaryCards(report, sections);
   const sectionNav = createSectionNavigation(sections);
@@ -46,6 +51,38 @@ function createEmptyViewer() {
   empty.className = 'analysis-report-empty';
   empty.innerHTML = '<h2>No report selected</h2><p>Generate a new report or select View from the saved reports table.</p>';
   return empty;
+}
+
+function createFailedReportViewer(report) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'analysis-report-viewer-content';
+
+  const card = document.createElement('article');
+  card.className = 'analysis-error-card';
+
+  const eyebrow = createElement('p', 'Failed analysis report');
+  eyebrow.className = 'analysis-error-eyebrow';
+
+  const title = createElement('h2', report.promptTitle || 'Analysis failed');
+  const message = createElement('p', report.errorMessage || 'The AI provider returned an error before a report could be generated.');
+  message.className = 'analysis-error-message';
+
+  const meta = document.createElement('div');
+  meta.className = 'analysis-error-meta';
+  if (report.errorCode) meta.append(createErrorPill('Error', report.errorCode));
+  if (report.ticker) meta.append(createErrorPill('Ticker', report.ticker));
+  meta.append(createErrorPill('Generated', report.createdAt ? formatDateTime(report.createdAt) : 'Unknown'));
+
+  card.append(eyebrow, title, message, meta);
+  wrapper.append(card);
+  return wrapper;
+}
+
+function createErrorPill(label, value) {
+  const pill = document.createElement('span');
+  pill.className = 'analysis-error-pill';
+  pill.textContent = `${label}: ${value}`;
+  return pill;
 }
 
 function createReportKicker(report) {

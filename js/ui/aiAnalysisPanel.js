@@ -1,24 +1,28 @@
-import { ANALYSIS_PROMPTS, PARAMETER_DEFINITIONS, findPromptById } from '../ai/promptRegistry.js';
+import { loadAvailablePrompts, getParameterDefinition, normalizePromptParameters } from '../ai/promptStorage.js';
+import { loadPromptTemplate, renderPromptTemplate } from '../ai/promptTemplateRenderer.js';
 import { generateCompanyAnalysis } from '../ai/analysisService.js';
 import { renderAnalysisReportViewer } from './analysisReportViewer.js';
+import { renderAnalysisErrorCard } from './analysisErrorCard.js';
 import { getErrorMessage, setButtonProcessing } from '../utils/dom.js';
+import { getAnalysisErrorDisplay } from '../ai/geminiErrorHandler.js';
 
 let aiPanelState = {
   transactions: [],
+  prompts: [],
+  selectedPrompt: null,
   initialized: false
 };
 
-export function initializeAiAnalysisPanel({ getTransactions }) {
+export async function initializeAiAnalysisPanel({ getTransactions }) {
   const form = document.querySelector('#aiAnalysisForm');
   if (!form || aiPanelState.initialized) return;
 
   aiPanelState.initialized = true;
   aiPanelState.getTransactions = getTransactions;
 
-  populatePromptSelect();
   bindAiPanelEvents(form);
   refreshAiCompanyOptions(getTransactions());
-  renderDynamicParameterFields();
+  await refreshAiPromptOptions();
 }
 
 export function refreshAiCompanyOptions(transactions) {
@@ -40,19 +44,34 @@ export function refreshAiCompanyOptions(transactions) {
   }
 }
 
-function populatePromptSelect() {
+export async function refreshAiPromptOptions(preferredPromptId = '') {
   const promptSelect = document.querySelector('#aiPromptSelect');
   if (!promptSelect) return;
 
+  const previousValue = preferredPromptId || promptSelect.value;
+  aiPanelState.prompts = await loadAvailablePrompts();
+
   promptSelect.replaceChildren(
-    ...ANALYSIS_PROMPTS.map(prompt => createOption(prompt.id, prompt.title))
+    ...aiPanelState.prompts.map(prompt => createOption(prompt.id, `${prompt.title}${prompt.isCustom ? ' · Custom' : ''}`))
   );
+
+  if (previousValue && [...promptSelect.options].some(option => option.value === previousValue)) {
+    promptSelect.value = previousValue;
+  }
+
+  await renderDynamicParameterFields();
 }
 
 function bindAiPanelEvents(form) {
   document.querySelector('#aiPromptSelect')?.addEventListener('change', renderDynamicParameterFields);
   document.querySelector('#aiCompanySelect')?.addEventListener('change', handleAiCompanySelection);
   form.addEventListener('submit', handleAiAnalysisSubmit);
+
+  window.addEventListener('analysis-prompts-changed', event => {
+    refreshAiPromptOptions(event.detail?.promptId || '').catch(error => {
+      setAiStatus(`Unable to refresh prompts: ${getErrorMessage(error)}`, 'error');
+    });
+  });
 }
 
 function handleAiCompanySelection(event) {
@@ -65,33 +84,38 @@ function handleAiCompanySelection(event) {
 
   setParameterFieldValue('companyName', selectedCompany.companyName);
   setParameterFieldValue('ticker', selectedCompany.ticker);
+  renderSelectedPromptPreview();
 }
 
-function renderDynamicParameterFields() {
+async function renderDynamicParameterFields() {
   const promptSelect = document.querySelector('#aiPromptSelect');
   const descriptionElement = document.querySelector('#aiPromptDescription');
   const fieldsContainer = document.querySelector('#aiParameterFields');
   if (!promptSelect || !fieldsContainer) return;
 
-  const selectedPrompt = findPromptById(promptSelect.value);
-  if (descriptionElement) descriptionElement.textContent = selectedPrompt.description;
+  const selectedPrompt = aiPanelState.prompts.find(prompt => prompt.id === promptSelect.value) || aiPanelState.prompts[0] || null;
+  aiPanelState.selectedPrompt = selectedPrompt;
 
-  fieldsContainer.replaceChildren(
-    ...selectedPrompt.parameters.map(parameterName => createParameterField(parameterName))
-  );
+  if (descriptionElement) {
+    descriptionElement.textContent = selectedPrompt
+      ? `${selectedPrompt.description || 'Custom analysis prompt.'}${selectedPrompt.isCustom ? ' This is a custom prompt.' : ''}`
+      : 'No prompt available.';
+  }
+
+  const parameters = normalizePromptParameters(selectedPrompt?.parameters || []);
+  fieldsContainer.replaceChildren(...parameters.map(createParameterField));
+  await renderSelectedPromptPreview();
 }
 
-function createParameterField(parameterName) {
-  const definition = PARAMETER_DEFINITIONS[parameterName] || {
-    label: parameterName,
-    type: 'text',
-    placeholder: '',
-    required: false
-  };
+function createParameterField(parameterDefinition) {
+  const definition = typeof parameterDefinition === 'string'
+    ? getParameterDefinition(parameterDefinition)
+    : parameterDefinition;
+  const parameterName = typeof parameterDefinition === 'string' ? parameterDefinition : parameterDefinition.name;
 
   const label = document.createElement('label');
   label.dataset.aiParameter = parameterName;
-  label.textContent = definition.label;
+  label.textContent = definition.label || parameterName;
 
   let input;
   if (definition.type === 'textarea') {
@@ -99,7 +123,7 @@ function createParameterField(parameterName) {
     input.rows = 3;
   } else if (definition.type === 'select') {
     input = document.createElement('select');
-    input.append(...(definition.options || []).map(option => createOption(option, option)));
+    input.append(createOption('', 'Select...'), ...(definition.options || []).map(option => createOption(option, option)));
   } else {
     input = document.createElement('input');
     input.type = definition.type || 'text';
@@ -108,9 +132,30 @@ function createParameterField(parameterName) {
   input.name = parameterName;
   input.placeholder = definition.placeholder || '';
   input.required = Boolean(definition.required);
+  input.addEventListener('input', debounce(renderSelectedPromptPreview, 250));
+  input.addEventListener('change', renderSelectedPromptPreview);
   label.append(input);
 
   return label;
+}
+
+async function renderSelectedPromptPreview() {
+  const previewElement = document.querySelector('#aiPromptPreview');
+  const detailsElement = document.querySelector('#aiPromptPreviewDetails');
+  if (!previewElement || !aiPanelState.selectedPrompt) return;
+
+  try {
+    const form = document.querySelector('#aiAnalysisForm');
+    const parameters = form ? collectPromptParameters(new FormData(form)) : {};
+    const template = await loadPromptTemplate(aiPanelState.selectedPrompt);
+    const renderedPreview = renderPromptTemplate(template, parameters);
+    previewElement.textContent = renderedPreview;
+    if (detailsElement) {
+      detailsElement.querySelector('summary').textContent = `Read selected prompt: ${aiPanelState.selectedPrompt.title}`;
+    }
+  } catch (error) {
+    previewElement.textContent = `Unable to load selected prompt: ${getErrorMessage(error)}`;
+  }
 }
 
 async function handleAiAnalysisSubmit(event) {
@@ -127,22 +172,38 @@ async function handleAiAnalysisSubmit(event) {
   try {
     const formData = new FormData(form);
     const promptId = String(formData.get('promptId') || '').trim();
-    const parameters = Object.fromEntries(formData.entries());
-    delete parameters.promptId;
-
-    const extraInstructions = String(formData.get('extraInstructions') || '').trim();
-    if (extraInstructions) parameters.extraInstructions = extraInstructions;
+    const parameters = collectPromptParameters(formData);
 
     const report = await generateCompanyAnalysis(promptId, parameters);
     renderAnalysisReportViewer(report, resultElement);
     window.dispatchEvent(new CustomEvent('analysis-report-saved', { detail: { report } }));
     setAiStatus('Analysis generated and saved.', 'success');
   } catch (error) {
-    setAiStatus(`Analysis failed: ${getErrorMessage(error)}`, 'error');
+    const display = getAnalysisErrorDisplay(error);
+    renderAnalysisErrorCard(error, resultElement, {
+      onRetry: () => form.requestSubmit()
+    });
+
+    if (display.failedReport) {
+      window.dispatchEvent(new CustomEvent('analysis-report-saved', { detail: { report: display.failedReport } }));
+    }
+
+    setAiStatus(`${display.title}: ${display.message}`, 'error');
   } finally {
     setButtonProcessing(submitButton, false);
     if (statusElement) statusElement.hidden = false;
   }
+}
+
+function collectPromptParameters(formData) {
+  const parameters = Object.fromEntries(formData.entries());
+  delete parameters.promptId;
+  delete parameters.selectedCompany;
+
+  const extraInstructions = String(formData.get('extraInstructions') || '').trim();
+  if (extraInstructions) parameters.extraInstructions = extraInstructions;
+
+  return parameters;
 }
 
 function setAiStatus(message, type = 'info') {
@@ -185,4 +246,12 @@ function createOption(value, text) {
   option.value = value;
   option.textContent = text;
   return option;
+}
+
+function debounce(callback, waitMs) {
+  let timeoutId;
+  return (...args) => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => callback(...args), waitMs);
+  };
 }

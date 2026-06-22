@@ -1,6 +1,10 @@
 const templateCache = new Map();
 
 export async function loadPromptTemplate(promptDefinition) {
+  if (promptDefinition?.promptText !== undefined) {
+    return String(promptDefinition.promptText || '');
+  }
+
   if (!promptDefinition?.file) {
     throw new Error('Prompt template file is missing.');
   }

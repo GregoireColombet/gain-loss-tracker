@@ -287,3 +287,51 @@ After deploying, clear the temporary disabled flag in the browser if needed:
 ```js
 localStorage.removeItem('stockTrackerStockPriceFunctionDisabled')
 ```
+
+
+## Editable AI prompts
+
+The Analysis page now supports both default prompts and user-created custom prompts.
+
+- Default prompts stay in `ai/prompts/` as read-only templates.
+- Custom prompt edits and blank prompts are saved in Supabase table `ai_prompts`.
+- If Supabase persistence is unavailable, custom prompts are saved locally in browser storage.
+- Run `supabase-ai-prompts-schema.sql` in Supabase SQL Editor to enable cloud persistence.
+
+Each custom prompt stores:
+
+- title
+- category
+- description
+- prompt text
+- dynamic parameters JSON
+
+The Generate Analysis form builds its fields from each prompt's parameters, and the folding prompt preview shows the selected prompt before sending it to Gemini.
+
+
+### Gemini error handling
+
+The Analysis page now maps common Gemini / Google AI Studio errors into user-friendly messages:
+
+- `400` invalid prompt or parameters
+- `401` missing or invalid `GEMINI_API_KEY`
+- `403` model/API access denied
+- `404` configured model unavailable
+- `429` rate limit reached
+- `500` Google AI internal error
+- `503` Gemini temporarily busy / overloaded
+
+Transient errors (`429`, `500`, `503`) retry automatically with short backoff before the user sees an error card. Failed reports are stored with `status = failed` when the `analysis_reports` status migration has been applied.
+
+Run this migration if your table was created before error tracking was added:
+
+```sql
+\i supabase-analysis-reports-status-migration.sql
+```
+
+Redeploy the included Edge Function after updating Gemini handling:
+
+```bash
+supabase secrets set GEMINI_API_KEY=YOUR_GEMINI_KEY
+supabase functions deploy generate-company-analysis --no-verify-jwt
+```

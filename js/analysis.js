@@ -5,6 +5,7 @@ import { getErrorMessage } from './utils/dom.js';
 import { refreshAuthenticationPanel as renderAuthenticationPanel, sendLoginLinkFromForm, signOutAndReloadData } from './ui/authPanel.js';
 import { initializeAiAnalysisPanel, refreshAiCompanyOptions } from './ui/aiAnalysisPanel.js';
 import { initializeAnalysisReportTable, refreshAnalysisReportTable } from './ui/analysisReportTable.js';
+import { initializePromptEditor } from './ui/promptEditor.js';
 
 const authPanel = document.querySelector('#authPanel');
 const authForm = document.querySelector('#authForm');
@@ -38,7 +39,8 @@ async function initializeAnalysisPage() {
 
   transactions = await loadInitialTransactions();
   initializeAnalysisReportTable();
-  initializeAiAnalysisPanel({ getTransactions: () => transactions });
+  await initializePromptEditor();
+  await initializeAiAnalysisPanel({ getTransactions: () => transactions });
 }
 
 function bindAnalysisPageEvents() {
