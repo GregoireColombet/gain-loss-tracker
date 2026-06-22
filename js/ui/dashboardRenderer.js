@@ -78,18 +78,18 @@ export function calculateAmountPlacedInCompany(holding) {
 
 function getMarketPriceSourceBadge(holding) {
   if (!Number.isFinite(holding.currentMarketPrice)) {
-    return '<span class="price-source-badge price-source-error">No price</span>';
+    return '<span class="price-source-dot price-source-missing" title="No price available" aria-label="No price available"></span>';
   }
 
   if (holding.isLiveApiMarketPrice) {
-    return '<span class="price-source-badge price-source-live">Live API</span>';
+    return '<span class="price-source-dot price-source-live" title="Live API price" aria-label="Live API price"></span>';
   }
 
   if (holding.isCachedMarketPrice) {
-    return '<span class="price-source-badge price-source-cache">Cached</span>';
+    return '<span class="price-source-dot price-source-cached" title="Cached price" aria-label="Cached price"></span>';
   }
 
-  return '<span class="price-source-badge price-source-manual">Manual</span>';
+  return '<span class="price-source-dot price-source-manual" title="Manual price" aria-label="Manual price"></span>';
 }
 
 function getMarketPriceSourceTitle(holding) {

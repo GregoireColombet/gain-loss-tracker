@@ -2119,38 +2119,51 @@ button:disabled,
 }
 
 
-.price-source-badge {
+.price-source-legend {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+  color: var(--muted-text-color);
+  font-size: 0.82rem;
+  line-height: 1;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.price-source-legend span {
   display: inline-flex;
   align-items: center;
+  gap: 5px;
+  flex: 0 0 auto;
+}
+
+.price-source-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
   margin-left: 6px;
-  padding: 2px 7px;
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.4;
   vertical-align: middle;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85), 0 1px 4px rgba(15, 23, 42, 0.16);
+}
+
+.price-source-legend .price-source-dot {
+  margin-left: 0;
 }
 
 .price-source-live {
-  color: #166534;
-  background: #dcfce7;
-  border: 1px solid #86efac;
+  background: #16a34a;
 }
 
-.price-source-cache {
-  color: #92400e;
-  background: #fef3c7;
-  border: 1px solid #fbbf24;
+.price-source-cached {
+  background: #2563eb;
 }
 
 .price-source-manual {
-  color: #1d4ed8;
-  background: #dbeafe;
-  border: 1px solid #93c5fd;
+  background: #eab308;
 }
 
-.price-source-error {
-  color: #991b1b;
-  background: #fee2e2;
-  border: 1px solid #fecaca;
+.price-source-missing {
+  background: #dc2626;
 }
