@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stock Analysis</title>
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+  <header class="page-header">
+    <div>
+      <h1>Analysis</h1>
+      <p>Generate AI company-analysis reports from reusable prompt templates.</p>
+    </div>
+    <nav class="page-navigation">
+      <a href="./index.html">Dashboard</a>
+      <a href="./edit.html">Edit transactions</a>
+      <a href="./analysis.html" aria-current="page">Analysis</a>
+    </nav>
+  </header>
+
+  <main class="layout-container">
+
+    <section id="authPanel" class="panel auth-panel">
+      <div class="section-header">
+        <div>
+          <h2>Supabase sync</h2>
+          <p id="authStatus">Checking sync status...</p>
+        </div>
+        <button id="signOutButton" type="button" class="secondary-button" hidden>Sign out</button>
+      </div>
+      <form id="authForm" class="auth-form" hidden novalidate>
+        <label>
+          Email
+          <input id="authEmail" type="email" placeholder="you@example.com" required>
+        </label>
+        <button type="submit">Send login link</button>
+      </form>
+    </section>
+
+    <div id="messageBox" class="message-box" hidden></div>
+
+    <section class="panel ai-analysis-panel">
+      <div class="section-header">
+        <div>
+          <h2>AI company analysis</h2>
+          <p>Generate company, valuation, risk, dividend, earnings, and technical-analysis reports through your Supabase Edge Function and Gemini API.</p>
+        </div>
+      </div>
+      <form id="aiAnalysisForm" class="ai-analysis-form" novalidate>
+        <div class="ai-analysis-grid">
+          <label>
+            Portfolio company optional
+            <select id="aiCompanySelect" name="selectedCompany"></select>
+          </label>
+          <label>
+            Analysis prompt
+            <select id="aiPromptSelect" name="promptId" required></select>
+          </label>
+        </div>
+        <p id="aiPromptDescription" class="form-help-text"></p>
+        <div id="aiParameterFields" class="form-grid ai-parameter-fields"></div>
+        <label class="ai-extra-instructions">
+          Extra instructions optional
+          <textarea name="extraInstructions" rows="3" placeholder="Example: focus on risks, use a conservative valuation view, compare against my portfolio holdings."></textarea>
+        </label>
+        <div class="form-actions">
+          <button type="submit">Generate analysis</button>
+        </div>
+      </form>
+      <div id="aiAnalysisStatus" class="message-box info" hidden></div>
+      <pre id="aiAnalysisResult" class="ai-analysis-result" aria-live="polite"></pre>
+    </section>
+
+
+  </main>
+
+  <script type="module" src="./js/analysis.js"></script>
+</body>
+</html>

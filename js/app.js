@@ -12,7 +12,6 @@ import { refreshAuthenticationPanel as renderAuthenticationPanel, sendLoginLinkF
 import { applyFieldErrors, bindLiveValidationCleanup, clearFormValidation, scrollToFirstInvalidField, setFieldError, validateTransactionFormUi } from './ui/formValidation.js';
 import { renderCompanyFeeSummary, renderCompanyList, renderSummary } from './ui/dashboardRenderer.js';
 import { refreshTransactionInputSuggestions } from './ui/inputSuggestions.js';
-import { initializeAiAnalysisPanel, refreshAiCompanyOptions } from './ui/aiAnalysisPanel.js';
 
 const transactionForm = document.querySelector('#transactionForm');
 const transactionTypeSelect = document.querySelector('#type');
@@ -61,18 +60,6 @@ const resetCompanyFeeRangeButton = document.querySelector('#resetCompanyFeeRange
 let transactions = [];
 let latestMarketPriceResults = {};
 let feeRules = getDefaultFeeRules();
-
-const DEFAULT_COMPANY_FEE_START_DATE = '2026-01-01';
-
-function setDefaultCompanyFeeDateRange() {
-  if (companyFeeStartDateInput && !companyFeeStartDateInput.value) {
-    companyFeeStartDateInput.value = DEFAULT_COMPANY_FEE_START_DATE;
-  }
-
-  if (companyFeeEndDateInput && !companyFeeEndDateInput.value) {
-    companyFeeEndDateInput.value = getTodayDateString();
-  }
-}
 let isAutomaticallyUpdatingTransactionFee = false;
 
 function getMissingFeeRuleInputNames() {
@@ -189,8 +176,6 @@ async function initializeDashboard() {
   feeRules = await loadFeeRules(getDefaultFeeRules());
   renderFeeRuleInputs();
   transactions = await loadInitialTransactions();
-  initializeAiAnalysisPanel({ getTransactions: () => transactions });
-  setDefaultCompanyFeeDateRange();
   updateTransactionActionUi();
   updateTransactionFeeFromRule();
   await refreshDashboard();
@@ -258,7 +243,6 @@ async function refreshDashboard() {
   refreshCompanyFeeSummary();
   renderCompanyList(portfolio, companyListElement, handleManualPriceSubmit);
   refreshTransactionInputSuggestions(transactions, transactionForm);
-  refreshAiCompanyOptions(transactions);
   const openHoldings = basePortfolio.holdings.filter(holding => holding.remainingQuantity > 0);
   setSelectOptions(sellTickerSelect, openHoldings);
   setSelectOptions(breakEvenTickerSelect, openHoldings);
@@ -286,8 +270,8 @@ function getCompanyFeeDateRange() {
 }
 
 function handleResetCompanyFeeRange() {
-  if (companyFeeStartDateInput) companyFeeStartDateInput.value = DEFAULT_COMPANY_FEE_START_DATE;
-  if (companyFeeEndDateInput) companyFeeEndDateInput.value = getTodayDateString();
+  if (companyFeeStartDateInput) companyFeeStartDateInput.value = '';
+  if (companyFeeEndDateInput) companyFeeEndDateInput.value = '';
   refreshCompanyFeeSummary();
 }
 
