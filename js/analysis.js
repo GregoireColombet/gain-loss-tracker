@@ -4,6 +4,7 @@ import { hideMessage, showMessage } from './uiHelpers.js';
 import { getErrorMessage } from './utils/dom.js';
 import { refreshAuthenticationPanel as renderAuthenticationPanel, sendLoginLinkFromForm, signOutAndReloadData } from './ui/authPanel.js';
 import { initializeAiAnalysisPanel, refreshAiCompanyOptions } from './ui/aiAnalysisPanel.js';
+import { initializeAnalysisReportTable, refreshAnalysisReportTable } from './ui/analysisReportTable.js';
 
 const authPanel = document.querySelector('#authPanel');
 const authForm = document.querySelector('#authForm');
@@ -29,12 +30,14 @@ async function initializeAnalysisPage() {
       await updateAuthenticationPanel();
       transactions = await loadInitialTransactions();
       refreshAiCompanyOptions(transactions);
+      await refreshAnalysisReportTable();
     } catch (error) {
       showMessage(messageBox, `Authentication refresh failed: ${getErrorMessage(error)}`, 'error');
     }
   });
 
   transactions = await loadInitialTransactions();
+  initializeAnalysisReportTable();
   initializeAiAnalysisPanel({ getTransactions: () => transactions });
 }
 
@@ -59,6 +62,7 @@ async function handleSignOut() {
     afterSignOut: async reloadedTransactions => {
       transactions = reloadedTransactions;
       refreshAiCompanyOptions(transactions);
+      await refreshAnalysisReportTable();
       hideMessage(messageBox);
     },
     messageBox

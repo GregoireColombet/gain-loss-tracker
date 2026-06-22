@@ -61,7 +61,7 @@ export async function saveAnalysisReport(report) {
   if (!currentUser) return;
 
   try {
-    const { error } = await supabaseClient
+    const { data, error } = await supabaseClient
       .from('analysis_reports')
       .insert({
         user_id: currentUser.id,
@@ -71,12 +71,64 @@ export async function saveAnalysisReport(report) {
         parameters: report.parameters,
         result_markdown: report.resultMarkdown,
         created_at: report.createdAt
-      });
+      })
+      .select('id')
+      .single();
 
     if (error) throw error;
+
+    if (data?.id) {
+      report.supabaseId = data.id;
+      updateLocalAnalysisReport(report);
+    }
   } catch (error) {
     // Keep the generated report visible even if the optional persistence table is not available yet.
     console.warn('AI report saved locally, but Supabase persistence failed.', error);
+  }
+}
+
+
+export async function loadAnalysisReports() {
+  const localReports = loadLocalAnalysisReports();
+
+  if (!isSupabaseConfigured() || !supabaseClient) return localReports;
+
+  const currentUser = await getCurrentUser();
+  if (!currentUser) return localReports;
+
+  try {
+    const { data, error } = await supabaseClient
+      .from('analysis_reports')
+      .select('id, ticker, company_name, prompt_id, parameters, result_markdown, created_at')
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    const remoteReports = (data || []).map(mapSupabaseAnalysisReport);
+    return mergeReports(remoteReports, localReports);
+  } catch (error) {
+    console.warn('Unable to load Supabase AI reports. Falling back to local reports.', error);
+    return localReports;
+  }
+}
+
+export async function deleteAnalysisReport(reportId) {
+  deleteLocalAnalysisReport(reportId);
+
+  if (!isSupabaseConfigured() || !supabaseClient) return;
+
+  const currentUser = await getCurrentUser();
+  if (!currentUser) return;
+
+  try {
+    const { error } = await supabaseClient
+      .from('analysis_reports')
+      .delete()
+      .or(`id.eq.${reportId}`);
+
+    if (error) throw error;
+  } catch (error) {
+    console.warn('Unable to delete AI report from Supabase. Local copy was removed.', error);
   }
 }
 
@@ -94,4 +146,48 @@ export function loadLocalAnalysisReports() {
 function saveAnalysisReportToLocalStorage(report) {
   const reports = [report, ...loadLocalAnalysisReports()].slice(0, MAX_LOCAL_REPORTS);
   localStorage.setItem(LOCAL_ANALYSIS_STORAGE_KEY, JSON.stringify(reports, null, 2));
+}
+
+
+function updateLocalAnalysisReport(updatedReport) {
+  const reports = loadLocalAnalysisReports();
+  const nextReports = reports.map(report => report.id === updatedReport.id ? updatedReport : report);
+  localStorage.setItem(LOCAL_ANALYSIS_STORAGE_KEY, JSON.stringify(nextReports, null, 2));
+}
+
+function deleteLocalAnalysisReport(reportId) {
+  const reports = loadLocalAnalysisReports().filter(report => report.id !== reportId && report.supabaseId !== reportId);
+  localStorage.setItem(LOCAL_ANALYSIS_STORAGE_KEY, JSON.stringify(reports, null, 2));
+}
+
+function mapSupabaseAnalysisReport(row) {
+  const promptDefinition = findPromptById(row.prompt_id);
+
+  return {
+    id: row.id,
+    supabaseId: row.id,
+    promptId: row.prompt_id,
+    promptTitle: promptDefinition.title,
+    ticker: row.ticker || row.parameters?.ticker || '',
+    companyName: row.company_name || row.parameters?.companyName || '',
+    parameters: row.parameters || {},
+    resultMarkdown: row.result_markdown || '',
+    createdAt: row.created_at
+  };
+}
+
+function mergeReports(primaryReports, fallbackReports) {
+  const seenKeys = new Set();
+  const mergedReports = [];
+
+  [...primaryReports, ...fallbackReports].forEach(report => {
+    const key = report.supabaseId || report.id || `${report.promptId}-${report.createdAt}`;
+    if (seenKeys.has(key)) return;
+    seenKeys.add(key);
+    mergedReports.push(report);
+  });
+
+  return mergedReports.sort((firstReport, secondReport) =>
+    new Date(secondReport.createdAt || 0).getTime() - new Date(firstReport.createdAt || 0).getTime()
+  );
 }

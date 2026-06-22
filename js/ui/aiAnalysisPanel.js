@@ -1,5 +1,6 @@
 import { ANALYSIS_PROMPTS, PARAMETER_DEFINITIONS, findPromptById } from '../ai/promptRegistry.js';
-import { generateCompanyAnalysis, loadLocalAnalysisReports } from '../ai/analysisService.js';
+import { generateCompanyAnalysis } from '../ai/analysisService.js';
+import { renderAnalysisReportViewer } from './analysisReportViewer.js';
 import { getErrorMessage, setButtonProcessing } from '../utils/dom.js';
 
 let aiPanelState = {
@@ -18,7 +19,6 @@ export function initializeAiAnalysisPanel({ getTransactions }) {
   bindAiPanelEvents(form);
   refreshAiCompanyOptions(getTransactions());
   renderDynamicParameterFields();
-  renderLatestStoredReport();
 }
 
 export function refreshAiCompanyOptions(transactions) {
@@ -118,7 +118,7 @@ async function handleAiAnalysisSubmit(event) {
 
   const form = event.currentTarget;
   const submitButton = form.querySelector('button[type="submit"]');
-  const resultElement = document.querySelector('#aiAnalysisResult');
+  const resultElement = document.querySelector('#analysisReportViewer');
   const statusElement = document.querySelector('#aiAnalysisStatus');
 
   setAiStatus('Generating analysis with Gemini...', 'info');
@@ -134,29 +134,15 @@ async function handleAiAnalysisSubmit(event) {
     if (extraInstructions) parameters.extraInstructions = extraInstructions;
 
     const report = await generateCompanyAnalysis(promptId, parameters);
-    renderAnalysisReport(report, resultElement);
+    renderAnalysisReportViewer(report, resultElement);
+    window.dispatchEvent(new CustomEvent('analysis-report-saved', { detail: { report } }));
     setAiStatus('Analysis generated and saved.', 'success');
   } catch (error) {
-    if (resultElement) resultElement.textContent = '';
     setAiStatus(`Analysis failed: ${getErrorMessage(error)}`, 'error');
   } finally {
     setButtonProcessing(submitButton, false);
     if (statusElement) statusElement.hidden = false;
   }
-}
-
-function renderLatestStoredReport() {
-  const latestReport = loadLocalAnalysisReports()[0];
-  if (latestReport) renderAnalysisReport(latestReport, document.querySelector('#aiAnalysisResult'));
-}
-
-function renderAnalysisReport(report, resultElement) {
-  if (!resultElement) return;
-
-  const header = `${report.promptTitle || 'AI Analysis'}${report.ticker ? ` — ${report.ticker}` : ''}`;
-  const createdAt = report.createdAt ? new Date(report.createdAt).toLocaleString() : '';
-
-  resultElement.textContent = `${header}\n${createdAt}\n\n${report.resultMarkdown}`;
 }
 
 function setAiStatus(message, type = 'info') {

@@ -40,10 +40,35 @@
 
     <div id="messageBox" class="message-box" hidden></div>
 
+    <section class="panel analysis-reports-panel">
+      <div class="section-header">
+        <div>
+          <h2>Saved analysis reports</h2>
+          <p>Review, sort, open, or delete previously generated investment reports.</p>
+        </div>
+      </div>
+      <p id="analysisReportsEmpty" class="empty-state" hidden>No saved reports yet. Generate one below to build your research library.</p>
+      <div class="table-scroll-wrapper">
+        <table id="analysisReportsTable" class="analysis-reports-table">
+          <thead>
+            <tr>
+              <th scope="col" data-sort-key="createdAt"><button type="button" class="table-sort-button">Generated</button></th>
+              <th scope="col" data-sort-key="promptTitle"><button type="button" class="table-sort-button">Report type</button></th>
+              <th scope="col" data-sort-key="companyName"><button type="button" class="table-sort-button">Company</button></th>
+              <th scope="col" data-sort-key="ticker"><button type="button" class="table-sort-button">Ticker</button></th>
+              <th scope="col">Parameters</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="analysisReportsTableBody"></tbody>
+        </table>
+      </div>
+    </section>
+
     <section class="panel ai-analysis-panel">
       <div class="section-header">
         <div>
-          <h2>AI company analysis</h2>
+          <h2>Generate new analysis</h2>
           <p>Generate company, valuation, risk, dividend, earnings, and technical-analysis reports through your Supabase Edge Function and Gemini API.</p>
         </div>
       </div>
@@ -69,8 +94,9 @@
         </div>
       </form>
       <div id="aiAnalysisStatus" class="message-box info" hidden></div>
-      <pre id="aiAnalysisResult" class="ai-analysis-result" aria-live="polite"></pre>
     </section>
+
+    <section id="analysisReportViewer" class="panel analysis-report-viewer" aria-live="polite"></section>
 
 
   </main>
