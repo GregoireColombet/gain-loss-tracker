@@ -1753,3 +1753,7 @@ button:disabled,
     padding: 16px;
   }
 }
+
+.warning-text {
+  color: #b45309;
+}

@@ -1,10 +1,11 @@
-import { deleteAnalysisReport, loadAnalysisReports } from '../ai/analysisService.js';
+import { deleteAnalysisReport, loadAnalysisReportsWithStatus } from '../ai/analysisService.js';
 import { renderAnalysisReportViewer } from './analysisReportViewer.js';
 
 const SORTABLE_COLUMNS = new Set(['createdAt', 'promptTitle', 'companyName', 'ticker']);
 
 let reportTableState = {
   reports: [],
+  loadStatus: null,
   sortKey: 'createdAt',
   sortDirection: 'desc',
   selectedReportId: null,
@@ -19,7 +20,9 @@ export function initializeAnalysisReportTable() {
 }
 
 export async function refreshAnalysisReportTable(selectedReport = null) {
-  reportTableState.reports = await loadAnalysisReports();
+  const { reports, status } = await loadAnalysisReportsWithStatus();
+  reportTableState.reports = reports;
+  reportTableState.loadStatus = status;
 
   if (selectedReport) {
     reportTableState.selectedReportId = selectedReport.id;
@@ -102,6 +105,31 @@ function renderReportTable() {
   if (empty) empty.hidden = sortedReports.length > 0;
   table.hidden = sortedReports.length === 0;
   renderSortIndicators();
+  renderReportLoadStatus(sortedReports.length);
+}
+
+function renderReportLoadStatus(visibleReportCount) {
+  const statusElement = document.querySelector('#analysisReportsStatus');
+  if (!statusElement) return;
+
+  const status = reportTableState.loadStatus;
+  if (!status) {
+    statusElement.textContent = '';
+    return;
+  }
+
+  const remoteText = `${status.remoteCount || 0} Supabase report${status.remoteCount === 1 ? '' : 's'}`;
+  const localText = `${status.localCount || 0} local report${status.localCount === 1 ? '' : 's'}`;
+  const userText = status.userEmail ? ` for ${status.userEmail}` : '';
+
+  if (status.warning) {
+    statusElement.textContent = `${remoteText}${userText}; ${localText}. ${status.warning}`;
+    statusElement.classList.add('warning-text');
+    return;
+  }
+
+  statusElement.textContent = `Loaded ${visibleReportCount} saved report${visibleReportCount === 1 ? '' : 's'}: ${remoteText}${userText}; ${localText}.`;
+  statusElement.classList.remove('warning-text');
 }
 
 function createReportRow(report) {

@@ -89,26 +89,57 @@ export async function saveAnalysisReport(report) {
 
 
 export async function loadAnalysisReports() {
-  const localReports = loadLocalAnalysisReports();
+  const { reports } = await loadAnalysisReportsWithStatus();
+  return reports;
+}
 
-  if (!isSupabaseConfigured() || !supabaseClient) return localReports;
+export async function loadAnalysisReportsWithStatus() {
+  const localReports = loadLocalAnalysisReports();
+  const status = {
+    source: 'local',
+    localCount: localReports.length,
+    remoteCount: 0,
+    userEmail: '',
+    warning: '',
+    error: null
+  };
+
+  if (!isSupabaseConfigured() || !supabaseClient) {
+    status.warning = 'Supabase is not configured. Showing local saved reports only.';
+    return { reports: localReports, status };
+  }
 
   const currentUser = await getCurrentUser();
-  if (!currentUser) return localReports;
+  if (!currentUser) {
+    status.warning = 'You are not signed in. Supabase analysis reports cannot be loaded yet.';
+    return { reports: localReports, status };
+  }
+
+  status.userEmail = currentUser.email || '';
 
   try {
     const { data, error } = await supabaseClient
       .from('analysis_reports')
-      .select('id, ticker, company_name, prompt_id, parameters, result_markdown, created_at')
+      .select('id, user_id, ticker, company_name, prompt_id, parameters, result_markdown, created_at')
+      .eq('user_id', currentUser.id)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
 
     const remoteReports = (data || []).map(mapSupabaseAnalysisReport);
-    return mergeReports(remoteReports, localReports);
+    status.source = 'supabase';
+    status.remoteCount = remoteReports.length;
+
+    if (remoteReports.length === 0) {
+      status.warning = 'Supabase returned 0 reports for the signed-in user. If you see rows in the table, verify their user_id matches this user and that SELECT RLS policy is enabled.';
+    }
+
+    return { reports: mergeReports(remoteReports, localReports), status };
   } catch (error) {
     console.warn('Unable to load Supabase AI reports. Falling back to local reports.', error);
-    return localReports;
+    status.error = error;
+    status.warning = `Unable to load Supabase analysis reports: ${getSupabaseErrorMessage(error)}. Showing local saved reports only.`;
+    return { reports: localReports, status };
   }
 }
 
@@ -124,7 +155,7 @@ export async function deleteAnalysisReport(reportId) {
     const { error } = await supabaseClient
       .from('analysis_reports')
       .delete()
-      .or(`id.eq.${reportId}`);
+      .eq('id', reportId);
 
     if (error) throw error;
   } catch (error) {
@@ -158,6 +189,12 @@ function updateLocalAnalysisReport(updatedReport) {
 function deleteLocalAnalysisReport(reportId) {
   const reports = loadLocalAnalysisReports().filter(report => report.id !== reportId && report.supabaseId !== reportId);
   localStorage.setItem(LOCAL_ANALYSIS_STORAGE_KEY, JSON.stringify(reports, null, 2));
+}
+
+
+function getSupabaseErrorMessage(error) {
+  if (!error) return 'Unknown error';
+  return error.message || error.details || String(error);
 }
 
 function mapSupabaseAnalysisReport(row) {
