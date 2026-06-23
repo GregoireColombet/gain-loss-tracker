@@ -2,7 +2,7 @@ import { getCurrentUser, sendLoginLink, signOutUser } from '../authService.js';
 import { isSupabaseConfigured } from '../supabaseClient.js';
 import { showMessage } from '../uiHelpers.js';
 import { getErrorMessage } from '../utils/dom.js';
-import { getDisplayVersion, getVersionTooltip } from '../config/version.js';
+import { updateVersionElement } from '../config/version.js';
 
 const STATUS_CLASS_NAMES = [
   'sync-bar--checking',
@@ -13,12 +13,9 @@ const STATUS_CLASS_NAMES = [
 ];
 
 
-function updateVersionLabel(authPanel) {
+async function updateVersionLabel(authPanel) {
   const versionElement = authPanel?.querySelector('[data-app-version]');
-  if (!versionElement) return;
-  versionElement.textContent = getDisplayVersion();
-  versionElement.title = getVersionTooltip();
-  versionElement.setAttribute('aria-label', `Application version ${getDisplayVersion()}`);
+  await updateVersionElement(versionElement);
 }
 
 function setSyncStatus(authPanel, authStatus, status, text) {
@@ -30,7 +27,7 @@ function setSyncStatus(authPanel, authStatus, status, text) {
 
 export async function refreshAuthenticationPanel({ authPanel, authForm, authStatus, signOutButton }) {
   if (!authPanel) return;
-  updateVersionLabel(authPanel);
+  await updateVersionLabel(authPanel);
 
   setSyncStatus(authPanel, authStatus, 'checking', 'Checking sync status...');
 

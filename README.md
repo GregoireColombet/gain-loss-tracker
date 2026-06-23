@@ -366,3 +366,25 @@ js/config/version.js
 ```
 
 Update `version`, `githubTag`, and `buildDate` before creating a GitHub tag/release so the deployed UI version matches the GitHub release version.
+
+## GitHub Pages runtime version
+
+The app displays its runtime version in the Supabase sync bar.
+
+Version metadata is loaded from `version.json` at runtime. The included GitHub Actions workflow at `.github/workflows/pages.yml` regenerates `version.json` on each GitHub Pages deployment using:
+
+- the latest Git tag, for example `v1.2.3`
+- the short commit SHA
+- the UTC build date
+
+Recommended release flow:
+
+```bash
+git tag v1.2.3
+git push origin v1.2.3
+git push origin main
+```
+
+When GitHub Pages deploys, the displayed app version matches the latest reachable Git tag. If no tag exists, the workflow displays a development version such as `dev-a1b2c3d`.
+
+For local ZIP testing, the bundled `version.json` and `js/config/version.js` fallback display `v1.0.0`.
