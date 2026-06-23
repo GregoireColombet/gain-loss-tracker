@@ -2201,3 +2201,33 @@ button:disabled,
 .company-metrics .price-source-dot.price-source-missing {
   background: #dc2626;
 }
+
+.app-version {
+  flex: 0 0 auto;
+  margin-left: 6px;
+  padding: 2px 8px;
+  border: 1px solid rgba(100, 116, 139, 0.22);
+  border-radius: 999px;
+  color: var(--muted-text-color);
+  background: rgba(255, 255, 255, 0.7);
+  font-size: 0.74rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.sync-bar--connected .app-version {
+  border-color: rgba(22, 163, 74, 0.2);
+  color: #166534;
+}
+
+.sync-bar--disconnected .app-version,
+.sync-bar--checking .app-version {
+  border-color: rgba(245, 158, 11, 0.22);
+  color: #92400e;
+}
+
+.sync-bar--error .app-version {
+  border-color: rgba(220, 38, 38, 0.22);
+  color: #991b1b;
+}

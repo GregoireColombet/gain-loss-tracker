@@ -356,3 +356,13 @@ Redeploy the included Edge Function after updating Gemini handling:
 supabase secrets set GEMINI_API_KEY=YOUR_GEMINI_KEY
 supabase functions deploy generate-company-analysis --no-verify-jwt
 ```
+
+## Application version
+
+The app version displayed in the Supabase sync bar is defined in:
+
+```text
+js/config/version.js
+```
+
+Update `version`, `githubTag`, and `buildDate` before creating a GitHub tag/release so the deployed UI version matches the GitHub release version.
