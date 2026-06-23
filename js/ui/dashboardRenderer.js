@@ -76,20 +76,36 @@ export function calculateAmountPlacedInCompany(holding) {
 }
 
 
+const PRICE_SOURCE_DOT_CLASS_BY_TYPE = {
+  live: 'price-source-live',
+  cached: 'price-source-cached',
+  manual: 'price-source-manual',
+  missing: 'price-source-missing'
+};
+
+const PRICE_SOURCE_LABEL_BY_TYPE = {
+  live: 'Live API price',
+  cached: 'Cached price',
+  manual: 'Manual price',
+  missing: 'No price available'
+};
+
+function getMarketPriceSourceType(holding) {
+  if (!Number.isFinite(holding.currentMarketPrice)) return 'missing';
+  return PRICE_SOURCE_DOT_CLASS_BY_TYPE[holding.marketPriceSourceType]
+    ? holding.marketPriceSourceType
+    : 'manual';
+}
+
 function getMarketPriceSourceBadge(holding) {
-  if (!Number.isFinite(holding.currentMarketPrice)) {
-    return '<span class="price-source-dot price-source-missing" title="No price available" aria-label="No price available"></span>';
-  }
+  const sourceType = getMarketPriceSourceType(holding);
+  const dotClass = PRICE_SOURCE_DOT_CLASS_BY_TYPE[sourceType];
+  const label = PRICE_SOURCE_LABEL_BY_TYPE[sourceType];
 
-  if (holding.isLiveApiMarketPrice) {
-    return '<span class="price-source-dot price-source-live" title="Live API price" aria-label="Live API price"></span>';
-  }
-
-  if (holding.isCachedMarketPrice) {
-    return '<span class="price-source-dot price-source-cached" title="Cached price" aria-label="Cached price"></span>';
-  }
-
-  return '<span class="price-source-dot price-source-manual" title="Manual price" aria-label="Manual price"></span>';
+  // The source dot is rendered from the final holding data after live prices,
+  // cached prices, or manual fallbacks have been resolved. There is no separate
+  // dot refresh path, which avoids transparent/stale indicators after price updates.
+  return `<span class="price-source-dot ${dotClass}" title="${label}" aria-label="${label}"></span>`;
 }
 
 function getMarketPriceSourceTitle(holding) {

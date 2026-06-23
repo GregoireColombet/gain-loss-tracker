@@ -154,8 +154,13 @@ export function calculatePortfolioWithMarketPrices(portfolio, marketPricesByTick
       : Number.isFinite(manualMarketPrice)
         ? 'Manual fallback price'
         : 'No market price available';
-    const isCachedMarketPrice = /cached/i.test(marketPriceSource);
-    const isLiveApiMarketPrice = Number.isFinite(liveMarketPrice) && !isCachedMarketPrice;
+    const marketPriceSourceType = Number.isFinite(liveMarketPrice)
+      ? marketPriceResult?.sourceType || 'live'
+      : Number.isFinite(manualMarketPrice)
+        ? 'manual'
+        : 'missing';
+    const isCachedMarketPrice = marketPriceSourceType === 'cached';
+    const isLiveApiMarketPrice = marketPriceSourceType === 'live';
     const unrealizedGainLoss = calculateUnrealizedGainLoss(
       selectedMarketPrice,
       holding.averagePrice,
@@ -174,6 +179,7 @@ export function calculatePortfolioWithMarketPrices(portfolio, marketPricesByTick
       liveMarketPrice,
       manualMarketPrice,
       marketPriceSource,
+      marketPriceSourceType,
       isCachedMarketPrice,
       isLiveApiMarketPrice,
       unrealizedGainLoss

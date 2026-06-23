@@ -15,21 +15,30 @@ function normalizeTicker(ticker) {
   return String(ticker || '').trim().toUpperCase();
 }
 
+const MARKET_PRICE_SOURCE_TYPES = {
+  LIVE: 'live',
+  CACHED: 'cached',
+  MANUAL: 'manual',
+  MISSING: 'missing'
+};
+
 function buildUnavailablePriceResult(ticker, source) {
   return {
     ticker,
     status: API_STATUS.NOT_REACHABLE,
     price: null,
-    source
+    source,
+    sourceType: MARKET_PRICE_SOURCE_TYPES.MISSING
   };
 }
 
-function buildReadyPriceResult(ticker, price, source) {
+function buildReadyPriceResult(ticker, price, source, sourceType = MARKET_PRICE_SOURCE_TYPES.LIVE) {
   return {
     ticker,
     status: API_STATUS.READY,
     price,
-    source
+    source,
+    sourceType
   };
 }
 
@@ -173,7 +182,8 @@ function buildCachedFallbackResult(ticker, reason) {
   return buildReadyPriceResult(
     ticker,
     cachedPrice,
-    `${reason}; using last cached price`
+    `${reason}; using last cached price`,
+    MARKET_PRICE_SOURCE_TYPES.CACHED
   );
 }
 
@@ -247,7 +257,8 @@ export async function fetchCurrentMarketPrice(ticker) {
     return buildReadyPriceResult(
       normalizedTicker,
       marketPrice,
-      `Supabase Edge Function: ${STOCK_PRICE_FUNCTION_NAME}`
+      `Supabase Edge Function: ${STOCK_PRICE_FUNCTION_NAME}`,
+      MARKET_PRICE_SOURCE_TYPES.LIVE
     );
   } catch (error) {
     console.warn(`Market price API not reachable for ${normalizedTicker}.`, error);
