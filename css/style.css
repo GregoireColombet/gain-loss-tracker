@@ -2167,3 +2167,37 @@ button:disabled,
 .price-source-missing {
   background: #dc2626;
 }
+
+/* Keep price source dots compact inside metric cards.
+   The generic `.company-metrics span` card styling also matches nested span dots,
+   so these higher-specificity rules reset the inherited card background, border,
+   and padding and then apply the final source color. */
+.company-metrics .price-source-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  min-width: 10px;
+  min-height: 10px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  margin-left: 6px;
+  vertical-align: middle;
+  flex: 0 0 auto;
+}
+
+.company-metrics .price-source-dot.price-source-live {
+  background: #16a34a;
+}
+
+.company-metrics .price-source-dot.price-source-cached {
+  background: #2563eb;
+}
+
+.company-metrics .price-source-dot.price-source-manual {
+  background: #eab308;
+}
+
+.company-metrics .price-source-dot.price-source-missing {
+  background: #dc2626;
+}
