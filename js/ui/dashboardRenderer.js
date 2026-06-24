@@ -139,11 +139,17 @@ export function renderCompanyList(portfolio, companyListElement, onManualPriceSu
       : 'API not reachable';
 
     const relatedTransactions = portfolio.transactionRows.filter(row => row.ticker === holding.ticker);
-    const transactionHistoryHtml = relatedTransactions.map(transaction => `
-      <li>
-        <strong>${transaction.type}</strong> ${transaction.date} — ${formatQuantity(transaction.quantity)} shares @ ${formatMoney(transaction.sharePrice)}, fee ${formatMoney(getTransactionFeeAmount(transaction))}
-      </li>
-    `).join('');
+    const transactionHistoryHtml = relatedTransactions.map(transaction => {
+      const transactionTypeClass = transaction.type === 'SELL'
+        ? 'company-transaction-type-sell'
+        : 'company-transaction-type-buy';
+
+      return `
+        <li>
+          <strong class="company-transaction-type ${transactionTypeClass}">${transaction.type}</strong> ${transaction.date} — ${formatQuantity(transaction.quantity)} shares @ ${formatMoney(transaction.sharePrice)}, fee ${formatMoney(getTransactionFeeAmount(transaction))}
+        </li>
+      `;
+    }).join('');
 
     companyCard.innerHTML = `
       <div class="company-card-header">

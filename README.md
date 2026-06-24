@@ -388,3 +388,14 @@ git push origin main
 When GitHub Pages deploys, the displayed app version matches the latest reachable Git tag. If no tag exists, the workflow displays a development version such as `dev-a1b2c3d`.
 
 For local ZIP testing, the bundled `version.json` and `js/config/version.js` fallback display `v1.0.0`.
+
+## Supabase database schema
+
+The canonical database creation file is now:
+
+```text
+supabase/database_schema.sql
+```
+
+Legacy root-level Supabase SQL/migration files were consolidated into this single schema file.
+

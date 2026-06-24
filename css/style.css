@@ -1447,6 +1447,19 @@ button:disabled,
   text-align: left;
 }
 
+
+.company-transaction-type {
+  font-weight: 800;
+}
+
+.company-transaction-type-buy {
+  color: var(--success-color);
+}
+
+.company-transaction-type-sell {
+  color: var(--danger-color);
+}
+
 .transaction-type-badge {
   border-radius: 999px;
   color: #ffffff;
