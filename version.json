@@ -3,5 +3,6 @@
   "githubTag": "v1.0.0",
   "commit": "local",
   "buildDate": "2026-06-23T00:00:00Z",
-  "buildLabel": "Local package build"
+  "buildLabel": "Local package build",
+  "githubRepository": ""
 }
