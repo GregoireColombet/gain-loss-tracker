@@ -120,6 +120,39 @@ function createAmountPlacedText(holding) {
   return ` <span class="amount-placed-value">${formatMoney(amountPlaced)} placed</span>`;
 }
 
+function createRemainingSharesLine(holding) {
+  if (holding.remainingQuantity <= 0) return '';
+
+  return `
+    <p class="company-remaining-shares-line">
+      <strong>${formatQuantity(holding.remainingQuantity)}</strong> shares remaining${createAmountPlacedText(holding)}
+    </p>
+  `;
+}
+
+function createTotalProfitLossLine(combinedGainLoss) {
+  return `
+    <p class="company-total-pl-line ${getGainLossClass(combinedGainLoss)}">
+      <span>Total P/L</span>
+      <strong>${formatMoney(combinedGainLoss)}</strong>
+    </p>
+  `;
+}
+
+function createManualPriceForm(holding) {
+  if (holding.remainingQuantity <= 0) return '';
+
+  return `
+    <form class="manual-price-form" data-ticker="${holding.ticker}">
+      <label>Enter manual price</label>
+      <div class="manual-price-row">
+        <input type="number" step="0.000001" min="0" name="manualPrice" placeholder="Manual price">
+        <button type="submit" class="secondary-button">Save</button>
+      </div>
+    </form>
+  `;
+}
+
 export function renderCompanyList(portfolio, companyListElement, onManualPriceSubmit, filterText = '') {
   companyListElement.innerHTML = '';
 
@@ -173,11 +206,8 @@ export function renderCompanyList(portfolio, companyListElement, onManualPriceSu
         <div class="company-identity">
           <span class="status-pill ${holdingStatusClass}">${holdingStatus}</span>
           <h3>${holding.companyName} <span>${holding.ticker}</span></h3>
-          <p><strong>${formatQuantity(holding.remainingQuantity)}</strong> shares remaining${createAmountPlacedText(holding)}</p>
-        </div>
-        <div class="company-total-result ${getGainLossClass(combinedGainLoss)}">
-          <span>Total P/L</span>
-          <strong>${formatMoney(combinedGainLoss)}</strong>
+          ${createTotalProfitLossLine(combinedGainLoss)}
+          ${createRemainingSharesLine(holding)}
         </div>
       </div>
       <div class="company-metrics">
@@ -190,14 +220,10 @@ export function renderCompanyList(portfolio, companyListElement, onManualPriceSu
         <summary>Transaction history</summary>
         <ul class="transaction-history">${transactionHistoryHtml}</ul>
       </details>
-      <form class="manual-price-form" data-ticker="${holding.ticker}">
-        <label>Manual current price fallback</label>
-        <input type="number" step="0.000001" min="0" name="manualPrice" placeholder="Manual price">
-        <button type="submit" class="secondary-button">Save manual price</button>
-      </form>
+      ${createManualPriceForm(holding)}
     `;
 
-    companyCard.querySelector('.manual-price-form').addEventListener('submit', onManualPriceSubmit);
+    companyCard.querySelector('.manual-price-form')?.addEventListener('submit', onManualPriceSubmit);
     companyListElement.appendChild(companyCard);
   });
 }

@@ -23,3 +23,66 @@
 .company-metrics b { display: block; margin-top: 4px; font-size: 1rem; }
 @media (max-width: 900px) { .portfolio-insights-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .portfolio-insights-grid { grid-template-columns: 1fr; } }
+
+/* Dashboard company card layout adjustments */
+.overall-curve-panel .chart-fee-summary-block {
+  border-top: 1px solid var(--border-color);
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+}
+
+.company-total-pl-line {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.55rem;
+  margin: 0.4rem 0 0;
+}
+
+.company-total-pl-line span {
+  color: var(--muted-text-color);
+  font-size: 0.74rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.company-total-pl-line strong {
+  font-size: 1.16rem;
+  font-weight: 950;
+}
+
+.company-remaining-shares-line {
+  margin: 0.25rem 0 0;
+}
+
+.manual-price-form {
+  grid-template-columns: 1fr;
+}
+
+.manual-price-form > label {
+  display: block;
+  font-weight: 850;
+  margin-bottom: 0.45rem;
+}
+
+.manual-price-row {
+  align-items: end;
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.manual-price-row input {
+  min-width: 0;
+}
+
+@media (max-width: 560px) {
+  .manual-price-row {
+    grid-template-columns: 1fr;
+  }
+
+  .manual-price-row button {
+    width: 100%;
+  }
+}

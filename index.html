@@ -69,7 +69,7 @@
       <div id="portfolioInsights" class="portfolio-insights-grid" aria-live="polite"></div>
     </section>
 
-    <section class="panel">
+    <section class="panel overall-curve-panel">
       <div class="section-header">
         <div>
           <h2>Overall curve</h2>
@@ -121,6 +121,24 @@
       </div>
       <div class="chart-scroll-wrapper">
         <canvas id="gainLossChart" width="900" height="320" aria-label="Gain loss chart"></canvas>
+      </div>
+      <div class="chart-fee-summary-block" aria-labelledby="chartFeeSummaryTitle">
+        <div class="company-fee-summary" aria-live="polite">
+          <span id="chartFeeSummaryTitle">Total transaction fees paid</span>
+          <strong id="companiesTotalFeesPaid">$0.00</strong>
+          <small id="companiesFeeDateRangeLabel">All dates</small>
+        </div>
+        <div class="date-range-controls company-fee-range-controls" aria-label="Transaction fee date range">
+          <label>
+            Fee start date
+            <input id="companyFeeStartDate" type="date">
+          </label>
+          <label>
+            Fee end date
+            <input id="companyFeeEndDate" type="date">
+          </label>
+          <button id="resetCompanyFeeRangeButton" class="secondary-button" type="button">Reset fee range</button>
+        </div>
       </div>
     </section>
 
@@ -255,22 +273,6 @@
         <div>
           <h2>Companies traded</h2>
           <p>Each company shows unsold quantity, average price, realized gain/loss, unrealized gain/loss, and history.</p>
-          <div class="company-fee-summary" aria-live="polite">
-            <span>Total transaction fees paid</span>
-            <strong id="companiesTotalFeesPaid">$0.00</strong>
-            <small id="companiesFeeDateRangeLabel">All dates</small>
-          </div>
-          <div class="date-range-controls company-fee-range-controls" aria-label="Transaction fee date range">
-            <label>
-              Fee start date
-              <input id="companyFeeStartDate" type="date">
-            </label>
-            <label>
-              Fee end date
-              <input id="companyFeeEndDate" type="date">
-            </label>
-            <button id="resetCompanyFeeRangeButton" class="secondary-button" type="button">Reset fee range</button>
-          </div>
           <label class="company-search-field">
             Search companies
             <input id="companySearchInput" type="search" placeholder="Filter by company or ticker" autocomplete="off">
