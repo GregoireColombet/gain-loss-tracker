@@ -37,9 +37,12 @@ initializeAnalysisPage().catch(error => {
 });
 
 async function initializeAnalysisPage() {
+  // Shared auth starts first so the sync bar is consistent with Dashboard/Edit
+  // and cannot remain stuck if analysis-only widgets fail later.
+  await pageAuthController.initialize();
+
   initializeAnalysisWorkspaceTabs();
   initializeCommandPalette(getAnalysisCommandPaletteItems);
-  await pageAuthController.initialize();
   transactions = await loadInitialTransactions();
   initializeAnalysisReportTable();
   await initializePromptEditor();

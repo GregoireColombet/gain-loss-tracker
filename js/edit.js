@@ -1,6 +1,6 @@
 import { loadInitialTransactions, saveTransactions, exportTransactionsAsJson } from './storage.js';
 import { createTransactionFromForm, validateTransactionSet } from './validation.js';
-import { showMessage } from './uiHelpers.js';
+import { hideMessage, showMessage } from './uiHelpers.js';
 import { getErrorMessage, setButtonProcessing } from './utils/dom.js';
 import { createPageAuthController } from './app/pageAuthController.js';
 import { bindLiveValidationCleanup, clearFormValidation, validateTransactionFormUi } from './ui/formValidation.js';
@@ -44,6 +44,7 @@ const pageAuthController = createPageAuthController({
 let transactions = [];
 let pendingTransactionsAfterChange = null;
 let pendingSuccessMessage = '';
+let editEventsBound = false;
 let transactionSortConfig = {
   field: TRANSACTION_SORT_FIELDS.DATE,
   direction: TRANSACTION_SORT_DIRECTIONS.DESC
@@ -54,9 +55,11 @@ initializeEditPage().catch(error => {
 });
 
 async function initializeEditPage() {
+  // Initialize authentication first so the sync bar never stays stuck when
+  // optional edit-page UI wiring fails during future refactors.
+  await pageAuthController.initialize();
   bindEditEvents();
   initializeCommandPalette(getEditCommandPaletteItems);
-  await pageAuthController.initialize();
   transactions = await loadInitialTransactions();
   renderEditableTransactionRows();
 }
@@ -64,6 +67,25 @@ async function initializeEditPage() {
 window.addEventListener('pagehide', () => {
   pageAuthController.destroy();
 });
+
+
+function bindEditEvents() {
+  if (editEventsBound) return;
+  editEventsBound = true;
+
+  editForm?.addEventListener('submit', handleEditFormSubmit);
+  clearFormButton?.addEventListener('click', () => {
+    clearEditForm();
+    showMessage(messageBox, 'Form cleared.', 'info');
+  });
+  exportButton?.addEventListener('click', () => exportTransactionsAsJson(transactions));
+  confirmImpactButton?.addEventListener('click', confirmPendingChange);
+  cancelImpactButton?.addEventListener('click', cancelPendingChange);
+  transactionSortFieldSelect?.addEventListener('change', handleSortFieldChange);
+  transactionSortDirectionSelect?.addEventListener('change', handleSortDirectionChange);
+  sortableHeaderButtons.forEach(button => button.addEventListener('click', handleSortableHeaderClick));
+  bindLiveValidationCleanup(editForm);
+}
 
 function renderEditableTransactionRows() {
   syncSortControls();

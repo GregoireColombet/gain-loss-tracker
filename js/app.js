@@ -201,11 +201,14 @@ async function initializeDashboard() {
   dashboardInitialized = true;
 
   try {
+    // Initialize shared auth first so the sync bar leaves the checking state even
+    // if a later dashboard-only feature fails during startup.
+    await pageAuthController.initialize();
+
     bindDashboardEvents();
     initializeCommandPalette(getDashboardCommandPaletteItems);
     renderFeeRuleInputs();
     renderCompanySkeleton(companyListElement);
-    await pageAuthController.initialize();
 
     feeRules = await loadFeeRules(getDefaultFeeRules());
     renderFeeRuleInputs();
