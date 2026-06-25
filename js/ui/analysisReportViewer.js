@@ -1,3 +1,5 @@
+import { formatDateTime } from '../utils/formatters.js';
+import { createMetaPill } from './components.js';
 const SUMMARY_PATTERNS = [
   { key: 'verdict', label: 'Verdict', pattern: /(verdict|recommendation|confidence rating|recommended play)\s*[:\-–]\s*([^\n|]+)/i },
   { key: 'fairValue', label: 'Fair value / target', pattern: /(fair value|price target|bull case.*target|target price)\s*[:\-–]\s*([^\n|]+)/i },
@@ -69,21 +71,15 @@ function createFailedReportViewer(report) {
 
   const meta = document.createElement('div');
   meta.className = 'analysis-error-meta';
-  if (report.errorCode) meta.append(createErrorPill('Error', report.errorCode));
-  if (report.ticker) meta.append(createErrorPill('Ticker', report.ticker));
-  meta.append(createErrorPill('Generated', report.createdAt ? formatDateTime(report.createdAt) : 'Unknown'));
+  if (report.errorCode) meta.append(createMetaPill('Error', report.errorCode, 'analysis-error-pill'));
+  if (report.ticker) meta.append(createMetaPill('Ticker', report.ticker, 'analysis-error-pill'));
+  meta.append(createMetaPill('Generated', report.createdAt ? formatDateTime(report.createdAt) : 'Unknown', 'analysis-error-pill'));
 
   card.append(eyebrow, title, message, meta);
   wrapper.append(card);
   return wrapper;
 }
 
-function createErrorPill(label, value) {
-  const pill = document.createElement('span');
-  pill.className = 'analysis-error-pill';
-  pill.textContent = `${label}: ${value}`;
-  return pill;
-}
 
 function createReportKicker(report) {
   const kicker = document.createElement('p');
@@ -109,12 +105,6 @@ function createReportMeta(report) {
   return meta;
 }
 
-function createMetaPill(label, value) {
-  const pill = document.createElement('span');
-  pill.className = 'analysis-meta-pill';
-  pill.textContent = `${label}: ${value}`;
-  return pill;
-}
 
 function buildSummaryCards(report, sections) {
   const markdown = report.resultMarkdown || '';
@@ -261,7 +251,7 @@ function renderMarkdownLines(lines, container) {
 
     if (isTableStart(lines, index)) {
       const { table, nextIndex } = parseMarkdownTable(lines, index);
-      container.append(table);
+      container.append(wrapAnalysisTable(table));
       index = nextIndex;
       continue;
     }
@@ -323,6 +313,13 @@ function parseMarkdownTable(lines, startIndex) {
 
   table.append(thead, tbody);
   return { table, nextIndex: index };
+}
+
+function wrapAnalysisTable(table) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'analysis-table-wrapper';
+  wrapper.append(table);
+  return wrapper;
 }
 
 function splitTableRow(row) {

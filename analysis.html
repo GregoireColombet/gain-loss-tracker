@@ -37,7 +37,13 @@
 
     <div id="messageBox" class="message-box" hidden></div>
 
-    <section class="panel analysis-reports-panel">
+    <section class="analysis-workspace" aria-label="Analysis workspace">
+      <div id="analysisWorkspaceTabs" class="workspace-tabs" role="tablist" aria-label="Analysis tools">
+        <button type="button" class="workspace-tab-button" data-analysis-tab="saved" role="tab" aria-controls="analysis-tab-saved" aria-selected="true">Saved Reports</button>
+        <button type="button" class="workspace-tab-button" data-analysis-tab="generate" role="tab" aria-controls="analysis-tab-generate" aria-selected="false">Generate</button>
+        <button type="button" class="workspace-tab-button" data-analysis-tab="prompts" role="tab" aria-controls="analysis-tab-prompts" aria-selected="false">Prompt Editor</button>
+      </div>
+    <section id="analysis-tab-saved" class="panel analysis-reports-panel analysis-tab-panel" data-analysis-tab-panel="saved">
       <div class="section-header">
         <div>
           <h2>Saved analysis reports</h2>
@@ -64,7 +70,7 @@
       </div>
     </section>
 
-    <section class="panel ai-analysis-panel">
+    <section id="analysis-tab-generate" class="panel ai-analysis-panel analysis-tab-panel" data-analysis-tab-panel="generate" hidden>
       <div class="section-header">
         <div>
           <h2>Generate new analysis</h2>
@@ -100,7 +106,7 @@
     </section>
 
 
-    <section class="panel prompt-editor-panel">
+    <section id="analysis-tab-prompts" class="panel prompt-editor-panel analysis-tab-panel" data-analysis-tab-panel="prompts" hidden>
       <div class="section-header">
         <div>
           <h2>Prompt editor</h2>
@@ -153,19 +159,19 @@
             </div>
           </div>
           <div class="form-grid">
-            <label>
-              Temperature
-              <input id="promptEditorTemperature" type="number" min="0" max="2" step="0.1" value="0.3">
+            <label class="generation-setting-field">
+              <span class="generation-setting-label">Temperature <output id="promptEditorTemperatureOutput">0.3</output></span>
+              <input id="promptEditorTemperature" type="range" min="0" max="2" step="0.1" value="0.3">
               <span class="form-help-text">Lower values are more consistent. Recommended: 0.3.</span>
             </label>
-            <label>
-              Top P
-              <input id="promptEditorTopP" type="number" min="0" max="1" step="0.05" value="0.8">
+            <label class="generation-setting-field">
+              <span class="generation-setting-label">Top P <output id="promptEditorTopPOutput">0.8</output></span>
+              <input id="promptEditorTopP" type="range" min="0" max="1" step="0.05" value="0.8">
               <span class="form-help-text">Controls sampling diversity. Recommended: 0.8.</span>
             </label>
-            <label>
-              Max output tokens
-              <input id="promptEditorMaxOutputTokens" type="number" min="512" max="8192" step="256" value="4096">
+            <label class="generation-setting-field">
+              <span class="generation-setting-label">Max output tokens <output id="promptEditorMaxOutputTokensOutput">4096</output></span>
+              <input id="promptEditorMaxOutputTokens" type="range" min="512" max="8192" step="256" value="4096">
               <span class="form-help-text">Lower values reduce timeout/overload risk. Recommended: 4096.</span>
             </label>
           </div>
@@ -203,7 +209,9 @@
       <div id="promptEditorStatus" class="message-box info" hidden></div>
     </section>
 
-    <section id="analysisReportViewer" class="panel analysis-report-viewer" aria-live="polite"></section>
+    </section>
+
+    <section id="analysisReportViewer" class="panel analysis-report-viewer analysis-layout-viewer" aria-live="polite"></section>
 
 
   </main>

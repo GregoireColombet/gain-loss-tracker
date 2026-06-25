@@ -1,4 +1,5 @@
 import { getAnalysisErrorDisplay } from '../ai/geminiErrorHandler.js';
+import { createMetaPill } from './components.js';
 
 export function renderAnalysisErrorCard(error, container = document.querySelector('#analysisReportViewer'), { onRetry } = {}) {
   if (!container) return;
@@ -20,9 +21,9 @@ export function renderAnalysisErrorCard(error, container = document.querySelecto
 
   const meta = document.createElement('div');
   meta.className = 'analysis-error-meta';
-  if (display.status) meta.append(createMetaPill('HTTP', display.status));
-  if (display.code) meta.append(createMetaPill('Code', display.code));
-  meta.append(createMetaPill('Retryable', display.retryable ? 'Yes' : 'No'));
+  if (display.status) meta.append(createMetaPill('HTTP', display.status, 'analysis-error-pill'));
+  if (display.code) meta.append(createMetaPill('Code', display.code, 'analysis-error-pill'));
+  meta.append(createMetaPill('Retryable', display.retryable ? 'Yes' : 'No', 'analysis-error-pill'));
 
   const actionList = document.createElement('ul');
   actionList.className = 'analysis-error-actions-list';
@@ -86,9 +87,3 @@ function getSuggestedActions(display) {
   return ['Try again.', 'If it repeats, check Supabase Edge Function logs for the real provider error.'];
 }
 
-function createMetaPill(label, value) {
-  const pill = document.createElement('span');
-  pill.className = 'analysis-error-pill';
-  pill.textContent = `${label}: ${value}`;
-  return pill;
-}

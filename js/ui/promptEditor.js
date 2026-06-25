@@ -9,6 +9,7 @@ import {
   normalizeGenerationConfig
 } from '../ai/promptStorage.js';
 import { getErrorMessage, setButtonProcessing } from '../utils/dom.js';
+import { createOption } from './components.js';
 
 const PARAMETER_TYPES = ['text', 'textarea', 'number', 'date', 'select'];
 
@@ -51,8 +52,25 @@ function bindPromptEditorEvents(form) {
   document.querySelector('#promptEditorDeleteButton')?.addEventListener('click', handleDeletePrompt);
   document.querySelector('#promptParameterAddButton')?.addEventListener('click', () => addParameterRow());
   form.addEventListener('submit', handlePromptSave);
-  form.addEventListener('input', updatePromptEditorPreview);
-  form.addEventListener('change', updatePromptEditorPreview);
+  form.addEventListener('input', handlePromptEditorInput);
+  form.addEventListener('change', handlePromptEditorInput);
+}
+
+
+function handlePromptEditorInput() {
+  updateGenerationSettingOutputs();
+  updatePromptEditorPreview();
+}
+
+function updateGenerationSettingOutputs() {
+  setOutputValue('#promptEditorTemperatureOutput', document.querySelector('#promptEditorTemperature')?.value || '0.3');
+  setOutputValue('#promptEditorTopPOutput', document.querySelector('#promptEditorTopP')?.value || '0.8');
+  setOutputValue('#promptEditorMaxOutputTokensOutput', document.querySelector('#promptEditorMaxOutputTokens')?.value || '4096');
+}
+
+function setOutputValue(selector, value) {
+  const output = document.querySelector(selector);
+  if (output) output.textContent = value;
 }
 
 async function loadPromptIntoEditor(promptId) {
@@ -73,6 +91,7 @@ function renderPromptEditorForm(prompt) {
   setInputValue('#promptEditorTemperature', generationConfig.temperature);
   setInputValue('#promptEditorTopP', generationConfig.topP);
   setInputValue('#promptEditorMaxOutputTokens', generationConfig.maxOutputTokens);
+  updateGenerationSettingOutputs();
 
   const defaultNotice = document.querySelector('#promptEditorDefaultNotice');
   if (defaultNotice) {
@@ -280,9 +299,3 @@ function setInputValue(selector, value) {
   input.value = value || '';
 }
 
-function createOption(value, text) {
-  const option = document.createElement('option');
-  option.value = value;
-  option.textContent = text;
-  return option;
-}

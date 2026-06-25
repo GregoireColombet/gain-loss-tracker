@@ -5,6 +5,8 @@ import { createPageAuthController } from './app/pageAuthController.js';
 import { initializeAiAnalysisPanel, refreshAiCompanyOptions } from './ui/aiAnalysisPanel.js';
 import { initializeAnalysisReportTable, refreshAnalysisReportTable } from './ui/analysisReportTable.js';
 import { initializePromptEditor } from './ui/promptEditor.js';
+import { initializeAnalysisWorkspaceTabs, activateAnalysisTab } from './ui/analysisWorkspaceTabs.js';
+import { initializeCommandPalette } from './ui/commandPalette.js';
 
 const authPanel = document.querySelector('#authPanel');
 const authForm = document.querySelector('#authForm');
@@ -35,6 +37,8 @@ initializeAnalysisPage().catch(error => {
 });
 
 async function initializeAnalysisPage() {
+  initializeAnalysisWorkspaceTabs();
+  initializeCommandPalette(getAnalysisCommandPaletteItems);
   await pageAuthController.initialize();
   transactions = await loadInitialTransactions();
   initializeAnalysisReportTable();
@@ -45,3 +49,12 @@ async function initializeAnalysisPage() {
 window.addEventListener('pagehide', () => {
   pageAuthController.destroy();
 });
+
+
+function getAnalysisCommandPaletteItems() {
+  return [
+    { title: 'Analysis: Saved Reports', subtitle: 'Open saved reports table', action: () => activateAnalysisTab('saved') },
+    { title: 'Analysis: Generate Report', subtitle: 'Run an AI investment prompt', action: () => activateAnalysisTab('generate') },
+    { title: 'Analysis: Prompt Editor', subtitle: 'Create or edit analysis prompts', action: () => activateAnalysisTab('prompts') }
+  ];
+}

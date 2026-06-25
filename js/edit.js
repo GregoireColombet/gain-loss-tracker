@@ -6,6 +6,7 @@ import { createPageAuthController } from './app/pageAuthController.js';
 import { bindLiveValidationCleanup, clearFormValidation, validateTransactionFormUi } from './ui/formValidation.js';
 import { TRANSACTION_SORT_DIRECTIONS, TRANSACTION_SORT_FIELDS, renderTransactionTable as renderEditableTransactionTable } from './ui/editTransactionTable.js';
 import { renderImpactDialog } from './ui/impactPreviewDialog.js';
+import { initializeCommandPalette } from './ui/commandPalette.js';
 
 const editForm = document.querySelector('#editForm');
 const transactionTableBody = document.querySelector('#transactionTableBody');
@@ -36,7 +37,7 @@ const pageAuthController = createPageAuthController({
   loadData: loadInitialTransactions,
   onDataReloaded: async reloadedTransactions => {
     transactions = reloadedTransactions;
-    renderTransactionTable();
+    renderEditableTransactionRows();
   }
 });
 
@@ -54,16 +55,17 @@ initializeEditPage().catch(error => {
 
 async function initializeEditPage() {
   bindEditEvents();
+  initializeCommandPalette(getEditCommandPaletteItems);
   await pageAuthController.initialize();
   transactions = await loadInitialTransactions();
-  renderTransactionTable();
+  renderEditableTransactionRows();
 }
 
 window.addEventListener('pagehide', () => {
   pageAuthController.destroy();
 });
 
-function renderTransactionTable() {
+function renderEditableTransactionRows() {
   syncSortControls();
   renderEditableTransactionTable(transactions, transactionTableBody, handleTableActionClick, transactionSortConfig);
 }
@@ -139,7 +141,7 @@ function handleSortFieldChange(event) {
       ? TRANSACTION_SORT_DIRECTIONS.ASC
       : TRANSACTION_SORT_DIRECTIONS.DESC
   };
-  renderTransactionTable();
+  renderEditableTransactionRows();
 }
 
 function handleSortDirectionChange(event) {
@@ -147,7 +149,7 @@ function handleSortDirectionChange(event) {
     ...transactionSortConfig,
     direction: event.target.value
   };
-  renderTransactionTable();
+  renderEditableTransactionRows();
 }
 
 function handleSortableHeaderClick(event) {
@@ -160,7 +162,7 @@ function handleSortableHeaderClick(event) {
       ? (transactionSortConfig.direction === TRANSACTION_SORT_DIRECTIONS.ASC ? TRANSACTION_SORT_DIRECTIONS.DESC : TRANSACTION_SORT_DIRECTIONS.ASC)
       : (selectedField === TRANSACTION_SORT_FIELDS.COMPANY ? TRANSACTION_SORT_DIRECTIONS.ASC : TRANSACTION_SORT_DIRECTIONS.DESC)
   };
-  renderTransactionTable();
+  renderEditableTransactionRows();
 }
 
 function handleTableActionClick(event) {
@@ -262,7 +264,7 @@ async function confirmPendingChange() {
     pendingTransactionsAfterChange = null;
     impactDialog.close();
     clearEditForm();
-    renderTransactionTable();
+    renderEditableTransactionRows();
     showMessage(messageBox, pendingSuccessMessage, 'success');
   } catch (error) {
     transactions = await loadInitialTransactions();
@@ -276,4 +278,16 @@ function cancelPendingChange() {
   pendingTransactionsAfterChange = null;
   impactDialog.close();
   showMessage(messageBox, 'Change canceled. Records were not modified.', 'info');
+}
+
+
+function getEditCommandPaletteItems() {
+  return transactions.map(transaction => ({
+    title: `${transaction.companyName || transaction.ticker} (${transaction.ticker})`,
+    subtitle: `${transaction.type} ${transaction.date} · edit transaction`,
+    action: () => {
+      const rowButton = document.querySelector(`[data-action="edit"][data-id="${transaction.id}"]`);
+      rowButton?.click();
+    }
+  }));
 }

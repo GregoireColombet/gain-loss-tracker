@@ -1,0 +1,25 @@
+.portfolio-insights-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.insight-card {
+  border: 1px solid var(--border-color);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255,255,255,.92), rgba(248,250,252,.78));
+  padding: 16px;
+  text-decoration: none;
+  color: var(--text-color);
+  box-shadow: var(--soft-shadow);
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.insight-card:hover { transform: translateY(-1px); border-color: rgba(37,99,235,.3); box-shadow: var(--shadow); }
+.insight-card span { display: block; color: var(--muted-text-color); font-size: .76rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+.insight-card strong { display: block; margin-top: 6px; font-size: 1.15rem; letter-spacing: -.03em; }
+.insight-card small { display: block; margin-top: 4px; color: var(--muted-text-color); font-weight: 700; }
+.company-card { scroll-margin-top: 140px; }
+.company-identity h3 span { color: var(--muted-text-color); font-weight: 800; }
+.company-metrics small { display: block; color: var(--muted-text-color); font-size: .72rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
+.company-metrics b { display: block; margin-top: 4px; font-size: 1rem; }
+@media (max-width: 900px) { .portfolio-insights-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .portfolio-insights-grid { grid-template-columns: 1fr; } }

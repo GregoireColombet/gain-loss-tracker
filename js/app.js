@@ -2,16 +2,17 @@ import { TRANSACTION_TYPES, API_STATUS } from './constants.js';
 import { calculatePortfolioFromTransactions, calculatePortfolioWithMarketPrices, createGainLossTimeline } from './calculations.js';
 import { loadInitialTransactions, loadManualCurrentPrices, saveManualCurrentPrice, saveTransactions, exportTransactionsAsJson, importTransactionsFromFile, loadFeeRules, saveFeeRules } from './storage.js';
 import { fetchCurrentMarketPrices } from './marketPriceService.js';
-import { onAuthStateChange, restoreSavedSession, getRememberedLoginEmail } from './authService.js';
 import { createTransactionFromForm } from './validation.js';
 import { drawGainLossChart } from './chart.js';
 import { formatMoney, formatQuantity, showMessage, hideMessage, setSelectOptions } from './uiHelpers.js';
 import { calculateFeeForTransaction, calculateMinimumBreakEvenSellPrice, getDefaultFeeRules, normalizeBuyFeeRule, normalizeSellFeeRule } from './feeCalculator.js';
 import { findFirstElement, getErrorMessage, getTodayDateString, setButtonProcessing } from './utils/dom.js';
-import { refreshAuthenticationPanel as renderAuthenticationPanel, sendLoginLinkFromForm, signOutAndReloadData } from './ui/authPanel.js';
 import { applyFieldErrors, bindLiveValidationCleanup, clearFormValidation, scrollToFirstInvalidField, setFieldError, validateTransactionFormUi } from './ui/formValidation.js';
-import { renderCompanyFeeSummary, renderCompanyList, renderSummary } from './ui/dashboardRenderer.js';
+import { renderCompanyFeeSummary, renderCompanyList, renderPortfolioInsights, renderSummary } from './ui/dashboardRenderer.js';
 import { refreshTransactionInputSuggestions } from './ui/inputSuggestions.js';
+import { renderCompanySkeleton } from './ui/skeletonLoading.js';
+import { initializeCommandPalette } from './ui/commandPalette.js';
+import { createPageAuthController } from './app/pageAuthController.js';
 
 const transactionForm = document.querySelector('#transactionForm');
 const transactionTypeSelect = document.querySelector('#type');
@@ -20,6 +21,7 @@ const transactionSubmitButton = transactionForm?.querySelector('button[type="sub
 const sellTickerSelect = document.querySelector('#sellTickerSelect');
 const messageBox = document.querySelector('#messageBox');
 const companyListElement = document.querySelector('#companyList');
+const portfolioInsightsElement = document.querySelector('#portfolioInsights');
 const totalInvestedElement = document.querySelector('#totalInvested');
 const totalRealizedElement = document.querySelector('#totalRealized');
 const totalUnrealizedElement = document.querySelector('#totalUnrealized');
@@ -56,6 +58,7 @@ const companiesFeeDateRangeLabelElement = document.querySelector('#companiesFeeD
 const companyFeeStartDateInput = document.querySelector('#companyFeeStartDate');
 const companyFeeEndDateInput = document.querySelector('#companyFeeEndDate');
 const resetCompanyFeeRangeButton = document.querySelector('#resetCompanyFeeRangeButton');
+const companySearchInput = document.querySelector('#companySearchInput');
 
 let transactions = [];
 let latestMarketPriceResults = {};
@@ -63,8 +66,36 @@ let feeRules = getDefaultFeeRules();
 let isAutomaticallyUpdatingTransactionFee = false;
 let dashboardInitialized = false;
 let dashboardEventsBound = false;
-let unsubscribeAuthStateChange = null;
 let activeDashboardRefreshId = 0;
+
+const pageAuthController = createPageAuthController({
+  authPanel,
+  authForm,
+  authEmailInput,
+  authStatus,
+  signOutButton,
+  messageBox,
+  loadData: loadDashboardDataAfterAuthChange,
+  onDataReloaded: applyDashboardDataAfterAuthChange,
+  onAuthErrorMessage: 'Authentication refresh failed'
+});
+
+async function loadDashboardDataAfterAuthChange() {
+  const [reloadedFeeRules, reloadedTransactions] = await Promise.all([
+    loadFeeRules(getDefaultFeeRules()),
+    loadInitialTransactions()
+  ]);
+
+  return { feeRules: reloadedFeeRules, transactions: reloadedTransactions };
+}
+
+async function applyDashboardDataAfterAuthChange(reloadedData) {
+  feeRules = reloadedData.feeRules || getDefaultFeeRules();
+  transactions = reloadedData.transactions || [];
+  renderFeeRuleInputs();
+  updateTransactionFeeFromRule();
+  await refreshDashboard();
+}
 
 
 function getMissingFeeRuleInputNames() {
@@ -171,12 +202,10 @@ async function initializeDashboard() {
 
   try {
     bindDashboardEvents();
+    initializeCommandPalette(getDashboardCommandPaletteItems);
     renderFeeRuleInputs();
-    prefillRememberedEmail();
-
-    await restoreSavedSession();
-    await updateAuthenticationPanel();
-    registerDashboardAuthListenerOnce();
+    renderCompanySkeleton(companyListElement);
+    await pageAuthController.initialize();
 
     feeRules = await loadFeeRules(getDefaultFeeRules());
     renderFeeRuleInputs();
@@ -188,36 +217,6 @@ async function initializeDashboard() {
     dashboardInitialized = false;
     throw error;
   }
-}
-
-function registerDashboardAuthListenerOnce() {
-  if (unsubscribeAuthStateChange) return;
-  unsubscribeAuthStateChange = onAuthStateChange(handleDashboardAuthChange);
-}
-
-async function handleDashboardAuthChange() {
-  try {
-    await updateAuthenticationPanel();
-    feeRules = await loadFeeRules(getDefaultFeeRules());
-    renderFeeRuleInputs();
-    updateTransactionFeeFromRule();
-    transactions = await loadInitialTransactions();
-    await refreshDashboard();
-  } catch (error) {
-    showMessage(messageBox, `Authentication refresh failed: ${getErrorMessage(error)}`, 'error');
-  }
-}
-
-window.addEventListener('pagehide', () => {
-  if (unsubscribeAuthStateChange) {
-    unsubscribeAuthStateChange();
-    unsubscribeAuthStateChange = null;
-  }
-});
-
-function prefillRememberedEmail() {
-  if (!authEmailInput) return;
-  authEmailInput.value = getRememberedLoginEmail();
 }
 
 function bindDashboardEvents() {
@@ -235,8 +234,6 @@ function bindDashboardEvents() {
   useFeeRuleForTransactionInput?.addEventListener('change', updateTransactionFeeFromRule);
   exportButton?.addEventListener('click', () => exportTransactionsAsJson(transactions));
   importInput?.addEventListener('change', handleImportTransactions);
-  authForm?.addEventListener('submit', event => sendLoginLinkFromForm(event, authEmailInput, messageBox));
-  signOutButton?.addEventListener('click', handleSignOut);
   breakEvenForm?.addEventListener('submit', handleBreakEvenFormSubmit);
   saveFeeRuleButton?.addEventListener('click', handleSaveFeeRules);
   breakEvenTickerSelect?.addEventListener('change', handleBreakEvenTickerChange);
@@ -248,23 +245,7 @@ function bindDashboardEvents() {
   companyFeeStartDateInput?.addEventListener('change', refreshCompanyFeeSummary);
   companyFeeEndDateInput?.addEventListener('change', refreshCompanyFeeSummary);
   resetCompanyFeeRangeButton?.addEventListener('click', handleResetCompanyFeeRange);
-}
-
-
-async function updateAuthenticationPanel() {
-  await renderAuthenticationPanel({ authPanel, authForm, authStatus, signOutButton });
-}
-
-async function handleSignOut() {
-  await signOutAndReloadData({
-    messageBox,
-    loadData: loadInitialTransactions,
-    refreshAuthPanel: updateAuthenticationPanel,
-    afterSignOut: async reloadedTransactions => {
-      transactions = reloadedTransactions;
-      await refreshDashboard();
-    }
-  });
+  companySearchInput?.addEventListener('input', () => renderCompanyListForCurrentState());
 }
 
 
@@ -284,8 +265,9 @@ async function refreshDashboard() {
   const portfolio = calculatePortfolioWithMarketPrices(basePortfolio, marketPricesByTicker, manualPricesByTicker, latestMarketPriceResults);
 
   renderSummary(portfolio, { totalInvestedElement, totalRealizedElement, totalUnrealizedElement, overallGainLossElement });
+  renderPortfolioInsights(portfolio, portfolioInsightsElement);
   refreshCompanyFeeSummary();
-  renderCompanyList(portfolio, companyListElement, handleManualPriceSubmit);
+  renderCompanyList(portfolio, companyListElement, handleManualPriceSubmit, getCompanySearchText());
   refreshTransactionInputSuggestions(transactions, transactionForm);
   const openHoldings = basePortfolio.holdings.filter(holding => holding.remainingQuantity > 0);
   setSelectOptions(sellTickerSelect, openHoldings);
@@ -304,6 +286,31 @@ function refreshCompanyFeeSummary() {
     },
     getCompanyFeeDateRange()
   );
+}
+
+function getCompanySearchText() {
+  return String(companySearchInput?.value || '').trim();
+}
+
+function renderCompanyListForCurrentState() {
+  const basePortfolio = calculatePortfolioFromTransactions(transactions);
+  const marketPricesByTicker = createMarketPricesMap(latestMarketPriceResults);
+  const manualPricesByTicker = loadManualCurrentPrices();
+  const portfolio = calculatePortfolioWithMarketPrices(basePortfolio, marketPricesByTicker, manualPricesByTicker, latestMarketPriceResults);
+  renderPortfolioInsights(portfolio, portfolioInsightsElement);
+  renderCompanyList(portfolio, companyListElement, handleManualPriceSubmit, getCompanySearchText());
+}
+
+function getDashboardCommandPaletteItems() {
+  const basePortfolio = calculatePortfolioFromTransactions(transactions);
+  return basePortfolio.holdings.map(holding => ({
+    title: `${holding.companyName} (${holding.ticker})`,
+    subtitle: 'Jump to company card',
+    action: () => {
+      const id = `company-${String(holding.ticker || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+      document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }));
 }
 
 function getCompanyFeeDateRange() {

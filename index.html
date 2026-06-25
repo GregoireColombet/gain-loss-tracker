@@ -59,6 +59,16 @@
       </article>
     </section>
 
+    <section class="panel portfolio-insights-panel" aria-labelledby="portfolioInsightsTitle">
+      <div class="section-header">
+        <div>
+          <h2 id="portfolioInsightsTitle">Portfolio insights</h2>
+          <p>Quick highlights from your current positions, gains, losses, and fees.</p>
+        </div>
+      </div>
+      <div id="portfolioInsights" class="portfolio-insights-grid" aria-live="polite"></div>
+    </section>
+
     <section class="panel">
       <div class="section-header">
         <div>
@@ -261,6 +271,10 @@
             </label>
             <button id="resetCompanyFeeRangeButton" class="secondary-button" type="button">Reset fee range</button>
           </div>
+          <label class="company-search-field">
+            Search companies
+            <input id="companySearchInput" type="search" placeholder="Filter by company or ticker" autocomplete="off">
+          </label>
         </div>
         <div class="button-row">
           <button id="exportButton" type="button">Export JSON</button>

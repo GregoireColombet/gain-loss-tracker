@@ -1,4 +1,5 @@
 import { API_STATUS } from './constants.js';
+import { normalizeTicker } from './validation.js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY, isSupabaseConfigured } from './supabaseClient.js';
 
 // Supabase Edge Function used to fetch current prices from Finnhub.
@@ -10,10 +11,6 @@ const MARKET_PRICE_CACHE_KEY = 'stockTrackerLastMarketPrices';
 const MARKET_PRICE_CACHE_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const MARKET_PRICE_FUNCTION_DISABLED_KEY = 'stockTrackerStockPriceFunctionDisabled';
 const MARKET_PRICE_FUNCTION_DISABLED_TTL_MS = 5 * 60 * 1000;
-
-function normalizeTicker(ticker) {
-  return String(ticker || '').trim().toUpperCase();
-}
 
 const MARKET_PRICE_SOURCE_TYPES = {
   LIVE: 'live',

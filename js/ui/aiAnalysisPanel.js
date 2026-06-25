@@ -3,6 +3,7 @@ import { loadPromptTemplate, renderPromptTemplate } from '../ai/promptTemplateRe
 import { generateCompanyAnalysis } from '../ai/analysisService.js';
 import { renderAnalysisReportViewer } from './analysisReportViewer.js';
 import { renderAnalysisErrorCard } from './analysisErrorCard.js';
+import { createOption } from './components.js';
 import { getErrorMessage, setButtonProcessing } from '../utils/dom.js';
 import { getAnalysisErrorDisplay } from '../ai/geminiErrorHandler.js';
 
@@ -241,12 +242,6 @@ function getUniqueCompanies(transactions) {
   );
 }
 
-function createOption(value, text) {
-  const option = document.createElement('option');
-  option.value = value;
-  option.textContent = text;
-  return option;
-}
 
 function debounce(callback, waitMs) {
   let timeoutId;
