@@ -1,30 +1,22 @@
 import { calculatePortfolioFromTransactions } from '../calculations.js';
-import { formatMoney, formatQuantity, getGainLossClass } from '../uiHelpers.js';
+import { formatMoney, formatQuantity, getGainLossClass } from '../utils/formatters.js';
+import { applySortDirection, compareIsoDates, compareText, SORT_DIRECTIONS } from '../utils/sorting.js';
+import { createTransactionTypeBadgeHtml } from './statusBadges.js';
 
 export const TRANSACTION_SORT_FIELDS = Object.freeze({
   DATE: 'date',
   COMPANY: 'companyName'
 });
 
-export const TRANSACTION_SORT_DIRECTIONS = Object.freeze({
-  ASC: 'asc',
-  DESC: 'desc'
-});
+export const TRANSACTION_SORT_DIRECTIONS = SORT_DIRECTIONS;
 
 const DEFAULT_TRANSACTION_SORT = Object.freeze({
   field: TRANSACTION_SORT_FIELDS.DATE,
   direction: TRANSACTION_SORT_DIRECTIONS.DESC
 });
 
-function compareText(firstValue, secondValue) {
-  return String(firstValue || '').localeCompare(String(secondValue || ''), undefined, {
-    sensitivity: 'base',
-    numeric: true
-  });
-}
-
 function compareDates(firstTransaction, secondTransaction) {
-  const dateComparison = compareText(firstTransaction.date, secondTransaction.date);
+  const dateComparison = compareIsoDates(firstTransaction.date, secondTransaction.date);
   if (dateComparison !== 0) return dateComparison;
 
   return compareText(firstTransaction.createdAt, secondTransaction.createdAt);
@@ -38,13 +30,8 @@ export function sortTransactionRows(transactionRows, sortConfig = DEFAULT_TRANSA
       ? compareText(firstTransaction.companyName, secondTransaction.companyName) || compareDates(firstTransaction, secondTransaction)
       : compareDates(firstTransaction, secondTransaction);
 
-    return activeSort.direction === TRANSACTION_SORT_DIRECTIONS.DESC ? comparison * -1 : comparison;
+    return applySortDirection(comparison, activeSort.direction);
   });
-}
-
-function createTransactionTypeBadge(type) {
-  const badgeClass = type === 'SELL' ? 'transaction-type-badge sell' : 'transaction-type-badge buy';
-  return `<span class="${badgeClass}">${type}</span>`;
 }
 
 export function renderTransactionTable(transactions, transactionTableBody, onTableActionClick, sortConfig = DEFAULT_TRANSACTION_SORT) {
@@ -57,7 +44,7 @@ export function renderTransactionTable(transactions, transactionTableBody, onTab
     const tableRow = document.createElement('tr');
     tableRow.innerHTML = `
       <td data-label="Date">${transaction.date}</td>
-      <td data-label="Type">${createTransactionTypeBadge(transaction.type)}</td>
+      <td data-label="Type">${createTransactionTypeBadgeHtml(transaction.type)}</td>
       <td data-label="Company">${transaction.companyName}</td>
       <td data-label="Ticker">${transaction.ticker}</td>
       <td data-label="Price">${formatMoney(transaction.sharePrice)}</td>

@@ -1,19 +1,6 @@
-export function formatMoney(value) {
-  if (!Number.isFinite(value)) return 'API not reachable';
-  return Number(value).toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
-}
+import { formatMoney, formatQuantity, getGainLossClass } from './utils/formatters.js';
 
-export function formatQuantity(value) {
-  return Number(value).toLocaleString(undefined, { maximumFractionDigits: 6 });
-}
-
-export function getGainLossClass(value) {
-  if (!Number.isFinite(value)) return 'neutral-value';
-  return value >= 0 ? 'positive-value' : 'negative-value';
-}
+export { formatMoney, formatQuantity, getGainLossClass };
 
 export function showMessage(element, message, type = 'info') {
   if (!element) {

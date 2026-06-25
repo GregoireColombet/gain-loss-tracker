@@ -1,5 +1,8 @@
 import { deleteAnalysisReport, loadAnalysisReportsWithStatus } from '../ai/analysisService.js';
 import { renderAnalysisReportViewer } from './analysisReportViewer.js';
+import { formatDateTime } from '../utils/formatters.js';
+import { applySortDirection, compareIsoDates, compareText } from '../utils/sorting.js';
+import { createAnalysisStatusBadge } from './statusBadges.js';
 
 const SORTABLE_COLUMNS = new Set(['createdAt', 'promptTitle', 'companyName', 'ticker']);
 
@@ -152,11 +155,7 @@ function createReportRow(report) {
 
 function createStatusCell(report) {
   const cell = document.createElement('td');
-  const badge = document.createElement('span');
-  const status = report.status || 'completed';
-  badge.className = `analysis-status-badge ${status === 'failed' ? 'failed' : 'completed'}`;
-  badge.textContent = status === 'failed' ? 'Failed' : 'Completed';
-  cell.append(badge);
+  cell.append(createAnalysisStatusBadge(report.status));
   return cell;
 }
 
@@ -201,20 +200,15 @@ function createCell(text) {
 }
 
 function getSortedReports(reports) {
-  const directionMultiplier = reportTableState.sortDirection === 'asc' ? 1 : -1;
-
   return [...reports].sort((firstReport, secondReport) => {
     const firstValue = getSortValue(firstReport, reportTableState.sortKey);
     const secondValue = getSortValue(secondReport, reportTableState.sortKey);
 
     if (reportTableState.sortKey === 'createdAt') {
-      return (new Date(firstValue).getTime() - new Date(secondValue).getTime()) * directionMultiplier;
+      return applySortDirection(compareIsoDates(firstValue, secondValue), reportTableState.sortDirection);
     }
 
-    return String(firstValue).localeCompare(String(secondValue), undefined, {
-      sensitivity: 'base',
-      numeric: true
-    }) * directionMultiplier;
+    return applySortDirection(compareText(firstValue, secondValue), reportTableState.sortDirection);
   });
 }
 
@@ -241,7 +235,3 @@ function findSelectedReport() {
   return reportTableState.reports.find(report => report.id === reportTableState.selectedReportId) || reportTableState.reports[0] || null;
 }
 
-function formatDateTime(value) {
-  if (!value) return '—';
-  return new Date(value).toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-}

@@ -1,3 +1,6 @@
+import { getTodayDateString } from './dates.js';
+
+export { getTodayDateString };
 export function findFirstElement(selectorList) {
   for (const selector of selectorList) {
     const element = document.querySelector(selector);
@@ -19,13 +22,6 @@ export function setButtonProcessing(buttonElement, isProcessing, processingText 
   delete buttonElement.dataset.originalText;
 }
 
-export function getTodayDateString() {
-  const today = new Date();
-  const year = today.getFullYear();
-  const month = String(today.getMonth() + 1).padStart(2, '0');
-  const day = String(today.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
 
 export function getErrorMessage(error) {
   return error instanceof Error && error.message

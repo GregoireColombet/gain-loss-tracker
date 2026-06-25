@@ -1,9 +1,8 @@
 import { loadInitialTransactions, saveTransactions, exportTransactionsAsJson } from './storage.js';
 import { createTransactionFromForm, validateTransactionSet } from './validation.js';
-import { getRememberedLoginEmail, onAuthStateChange, restoreSavedSession } from './authService.js';
-import { showMessage, hideMessage } from './uiHelpers.js';
+import { showMessage } from './uiHelpers.js';
 import { getErrorMessage, setButtonProcessing } from './utils/dom.js';
-import { refreshAuthenticationPanel, sendLoginLinkFromForm, signOutAndReloadData } from './ui/authPanel.js';
+import { createPageAuthController } from './app/pageAuthController.js';
 import { bindLiveValidationCleanup, clearFormValidation, validateTransactionFormUi } from './ui/formValidation.js';
 import { TRANSACTION_SORT_DIRECTIONS, TRANSACTION_SORT_FIELDS, renderTransactionTable as renderEditableTransactionTable } from './ui/editTransactionTable.js';
 import { renderImpactDialog } from './ui/impactPreviewDialog.js';
@@ -27,6 +26,20 @@ const transactionSortDirectionSelect = document.querySelector('#transactionSortD
 const transactionSortStatus = document.querySelector('#transactionSortStatus');
 const sortableHeaderButtons = document.querySelectorAll('.column-sort-button');
 
+const pageAuthController = createPageAuthController({
+  authPanel,
+  authForm,
+  authEmailInput,
+  authStatus,
+  signOutButton,
+  messageBox,
+  loadData: loadInitialTransactions,
+  onDataReloaded: async reloadedTransactions => {
+    transactions = reloadedTransactions;
+    renderTransactionTable();
+  }
+});
+
 let transactions = [];
 let pendingTransactionsAfterChange = null;
 let pendingSuccessMessage = '';
@@ -41,58 +54,14 @@ initializeEditPage().catch(error => {
 
 async function initializeEditPage() {
   bindEditEvents();
-  await restoreSavedSession();
-  prefillRememberedEmail();
-  await updateAuthenticationPanel();
-  onAuthStateChange(handleAuthenticationChange);
+  await pageAuthController.initialize();
   transactions = await loadInitialTransactions();
   renderTransactionTable();
 }
 
-function prefillRememberedEmail() {
-  if (!authEmailInput) return;
-  authEmailInput.value = getRememberedLoginEmail();
-}
-
-function bindEditEvents() {
-  bindLiveValidationCleanup(editForm);
-  editForm.addEventListener('submit', handleEditFormSubmit);
-  clearFormButton.addEventListener('click', clearEditForm);
-  confirmImpactButton.addEventListener('click', confirmPendingChange);
-  cancelImpactButton.addEventListener('click', cancelPendingChange);
-  exportButton.addEventListener('click', () => exportTransactionsAsJson(transactions));
-  transactionSortFieldSelect?.addEventListener('change', handleSortFieldChange);
-  transactionSortDirectionSelect?.addEventListener('change', handleSortDirectionChange);
-  sortableHeaderButtons.forEach(button => button.addEventListener('click', handleSortableHeaderClick));
-  authForm?.addEventListener('submit', event => sendLoginLinkFromForm(event, authEmailInput, messageBox));
-  signOutButton?.addEventListener('click', handleSignOut);
-}
-
-async function updateAuthenticationPanel() {
-  await refreshAuthenticationPanel({ authPanel, authForm, authStatus, signOutButton });
-}
-
-async function handleAuthenticationChange() {
-  try {
-    await updateAuthenticationPanel();
-    transactions = await loadInitialTransactions();
-    renderTransactionTable();
-  } catch (error) {
-    showMessage(messageBox, `Authentication refresh failed: ${getErrorMessage(error)}`, 'error');
-  }
-}
-
-async function handleSignOut() {
-  await signOutAndReloadData({
-    messageBox,
-    loadData: loadInitialTransactions,
-    refreshAuthPanel: updateAuthenticationPanel,
-    afterSignOut: async reloadedTransactions => {
-      transactions = reloadedTransactions;
-      renderTransactionTable();
-    }
-  });
-}
+window.addEventListener('pagehide', () => {
+  pageAuthController.destroy();
+});
 
 function renderTransactionTable() {
   syncSortControls();

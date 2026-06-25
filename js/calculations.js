@@ -1,4 +1,5 @@
 import { TRANSACTION_TYPES } from './constants.js';
+import { formatDateOnly, getTodayDateString, parseDateOnly } from './utils/dates.js';
 
 export function sortTransactionsByDate(transactions) {
   return [...transactions].sort((firstTransaction, secondTransaction) => {
@@ -315,20 +316,3 @@ function createBucketLabel(date, period) {
   return `Week of ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
 }
 
-function parseDateOnly(dateString) {
-  if (!dateString) return null;
-  const [year, month, day] = String(dateString).split('-').map(Number);
-  if (!year || !month || !day) return null;
-  return new Date(year, month - 1, day);
-}
-
-function formatDateOnly(date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-}
-
-function getTodayDateString() {
-  return formatDateOnly(new Date());
-}

@@ -1,8 +1,7 @@
 import { loadInitialTransactions } from './storage.js';
-import { onAuthStateChange, restoreSavedSession, getRememberedLoginEmail } from './authService.js';
-import { hideMessage, showMessage } from './uiHelpers.js';
+import { showMessage } from './uiHelpers.js';
 import { getErrorMessage } from './utils/dom.js';
-import { refreshAuthenticationPanel as renderAuthenticationPanel, sendLoginLinkFromForm, signOutAndReloadData } from './ui/authPanel.js';
+import { createPageAuthController } from './app/pageAuthController.js';
 import { initializeAiAnalysisPanel, refreshAiCompanyOptions } from './ui/aiAnalysisPanel.js';
 import { initializeAnalysisReportTable, refreshAnalysisReportTable } from './ui/analysisReportTable.js';
 import { initializePromptEditor } from './ui/promptEditor.js';
@@ -14,6 +13,21 @@ const authStatus = document.querySelector('#authStatus');
 const signOutButton = document.querySelector('#signOutButton');
 const messageBox = document.querySelector('#messageBox');
 
+const pageAuthController = createPageAuthController({
+  authPanel,
+  authForm,
+  authEmailInput,
+  authStatus,
+  signOutButton,
+  messageBox,
+  loadData: loadInitialTransactions,
+  onDataReloaded: async reloadedTransactions => {
+    transactions = reloadedTransactions;
+    refreshAiCompanyOptions(transactions);
+    await refreshAnalysisReportTable();
+  }
+});
+
 let transactions = [];
 
 initializeAnalysisPage().catch(error => {
@@ -21,52 +35,13 @@ initializeAnalysisPage().catch(error => {
 });
 
 async function initializeAnalysisPage() {
-  bindAnalysisPageEvents();
-  prefillRememberedEmail();
-  await restoreSavedSession();
-  await updateAuthenticationPanel();
-
-  onAuthStateChange(async () => {
-    try {
-      await updateAuthenticationPanel();
-      transactions = await loadInitialTransactions();
-      refreshAiCompanyOptions(transactions);
-      await refreshAnalysisReportTable();
-    } catch (error) {
-      showMessage(messageBox, `Authentication refresh failed: ${getErrorMessage(error)}`, 'error');
-    }
-  });
-
+  await pageAuthController.initialize();
   transactions = await loadInitialTransactions();
   initializeAnalysisReportTable();
   await initializePromptEditor();
   await initializeAiAnalysisPanel({ getTransactions: () => transactions });
 }
 
-function bindAnalysisPageEvents() {
-  authForm?.addEventListener('submit', event => sendLoginLinkFromForm(event, authEmailInput, messageBox));
-  signOutButton?.addEventListener('click', handleSignOut);
-}
-
-function prefillRememberedEmail() {
-  if (!authEmailInput) return;
-  authEmailInput.value = getRememberedLoginEmail();
-}
-
-async function updateAuthenticationPanel() {
-  await renderAuthenticationPanel({ authPanel, authForm, authStatus, signOutButton });
-}
-
-async function handleSignOut() {
-  await signOutAndReloadData({
-    loadData: loadInitialTransactions,
-    refreshAuthPanel: updateAuthenticationPanel,
-    afterSignOut: async reloadedTransactions => {
-      transactions = reloadedTransactions;
-      refreshAiCompanyOptions(transactions);
-      await refreshAnalysisReportTable();
-      hideMessage(messageBox);
-    },
-    messageBox
-  });
-}
+window.addEventListener('pagehide', () => {
+  pageAuthController.destroy();
+});
