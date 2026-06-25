@@ -131,10 +131,12 @@ function createRemainingSharesLine(holding) {
 }
 
 function createTotalProfitLossLine(combinedGainLoss) {
+  const gainLossClass = getGainLossClass(combinedGainLoss);
+
   return `
-    <p class="company-total-pl-line ${getGainLossClass(combinedGainLoss)}">
-      <span>Total P/L</span>
-      <strong>${formatMoney(combinedGainLoss)}</strong>
+    <p class="company-total-pl-line">
+      <span class="${gainLossClass}">Total P/L</span>
+      <strong class="${gainLossClass}">${formatMoney(combinedGainLoss)}</strong>
     </p>
   `;
 }

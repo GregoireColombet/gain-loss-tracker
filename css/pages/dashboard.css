@@ -40,11 +40,14 @@
 }
 
 .company-total-pl-line span {
-  color: var(--muted-text-color);
   font-size: 0.74rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.company-total-pl-line span:not(.positive-value):not(.negative-value):not(.neutral-value) {
+  color: var(--muted-text-color);
 }
 
 .company-total-pl-line strong {
