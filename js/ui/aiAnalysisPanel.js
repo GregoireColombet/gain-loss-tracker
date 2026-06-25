@@ -1,11 +1,10 @@
 import { loadAvailablePrompts, getParameterDefinition, normalizePromptParameters } from '../ai/promptStorage.js';
 import { loadPromptTemplate, renderPromptTemplate } from '../ai/promptTemplateRenderer.js';
 import { generateCompanyAnalysis } from '../ai/analysisService.js';
-import { renderAnalysisReportViewer } from './analysisReportViewer.js';
-import { renderAnalysisErrorCard } from './analysisErrorCard.js';
 import { createOption } from './components.js';
 import { getErrorMessage, setButtonProcessing } from '../utils/dom.js';
 import { getAnalysisErrorDisplay } from '../ai/geminiErrorHandler.js';
+import { activateAnalysisTab } from './analysisWorkspaceTabs.js';
 
 let aiPanelState = {
   transactions: [],
@@ -72,6 +71,14 @@ function bindAiPanelEvents(form) {
     refreshAiPromptOptions(event.detail?.promptId || '').catch(error => {
       setAiStatus(`Unable to refresh prompts: ${getErrorMessage(error)}`, 'error');
     });
+  });
+
+  document.querySelector('#aiAnalysisStatus')?.addEventListener('click', event => {
+    const openReportButton = event.target.closest('[data-open-saved-report]');
+    if (!openReportButton) return;
+
+    activateAnalysisTab('saved');
+    document.querySelector('#analysisReportViewer')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
 }
 
@@ -164,7 +171,6 @@ async function handleAiAnalysisSubmit(event) {
 
   const form = event.currentTarget;
   const submitButton = form.querySelector('button[type="submit"]');
-  const resultElement = document.querySelector('#analysisReportViewer');
   const statusElement = document.querySelector('#aiAnalysisStatus');
 
   setAiStatus('Generating analysis with Gemini...', 'info');
@@ -176,20 +182,16 @@ async function handleAiAnalysisSubmit(event) {
     const parameters = collectPromptParameters(formData);
 
     const report = await generateCompanyAnalysis(promptId, parameters);
-    renderAnalysisReportViewer(report, resultElement);
     window.dispatchEvent(new CustomEvent('analysis-report-saved', { detail: { report } }));
-    setAiStatus('Analysis generated and saved.', 'success');
+    setAiSuccessStatus('Report generated and saved.');
   } catch (error) {
     const display = getAnalysisErrorDisplay(error);
-    renderAnalysisErrorCard(error, resultElement, {
-      onRetry: () => form.requestSubmit()
-    });
 
     if (display.failedReport) {
       window.dispatchEvent(new CustomEvent('analysis-report-saved', { detail: { report: display.failedReport } }));
     }
 
-    setAiStatus(`${display.title}: ${display.message}`, 'error');
+    setAiErrorStatus(display, () => form.requestSubmit());
   } finally {
     setButtonProcessing(submitButton, false);
     if (statusElement) statusElement.hidden = false;
@@ -205,6 +207,48 @@ function collectPromptParameters(formData) {
   if (extraInstructions) parameters.extraInstructions = extraInstructions;
 
   return parameters;
+}
+
+
+function setAiSuccessStatus(message) {
+  const statusElement = document.querySelector('#aiAnalysisStatus');
+  if (!statusElement) return;
+
+  statusElement.hidden = false;
+  statusElement.className = 'message-box success ai-generation-status';
+  statusElement.replaceChildren(
+    document.createTextNode(`${message} `),
+    createOpenReportButton()
+  );
+}
+
+function setAiErrorStatus(display, onRetry) {
+  const statusElement = document.querySelector('#aiAnalysisStatus');
+  if (!statusElement) return;
+
+  statusElement.hidden = false;
+  statusElement.className = 'message-box error ai-generation-status';
+  statusElement.replaceChildren(
+    document.createTextNode(`${display.title}: ${display.message} `)
+  );
+
+  if (display.retry) {
+    const retryButton = document.createElement('button');
+    retryButton.type = 'button';
+    retryButton.className = 'secondary-button compact-button';
+    retryButton.textContent = 'Retry';
+    retryButton.addEventListener('click', onRetry);
+    statusElement.append(retryButton);
+  }
+}
+
+function createOpenReportButton() {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = 'secondary-button compact-button';
+  button.dataset.openSavedReport = 'true';
+  button.textContent = 'Open Report';
+  return button;
 }
 
 function setAiStatus(message, type = 'info') {
