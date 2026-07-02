@@ -49,14 +49,3 @@ supabase secrets set GEMINI_API_KEY=your_gemini_api_key
 ## Function configuration
 
 `supabase/config.toml` includes `verify_jwt = false` for both browser-called Edge Functions.
-
-## Company market data Edge Function
-
-The dashboard Category A widgets use `get-company-market-data` to fetch Finnhub earnings calendar, earnings history, analyst targets, and peers without exposing the Finnhub key in the browser.
-
-Deploy with:
-
-```bash
-supabase secrets set FINNHUB_API_KEY=YOUR_FINNHUB_KEY
-supabase functions deploy get-company-market-data --no-verify-jwt
-```

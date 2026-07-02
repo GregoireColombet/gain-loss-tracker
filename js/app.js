@@ -2,14 +2,13 @@ import { TRANSACTION_TYPES, API_STATUS } from './constants.js';
 import { calculatePortfolioFromTransactions, calculatePortfolioWithMarketPrices, createGainLossTimeline } from './calculations.js';
 import { loadInitialTransactions, loadManualCurrentPrices, saveManualCurrentPrice, saveTransactions, exportTransactionsAsJson, importTransactionsFromFile, loadFeeRules, saveFeeRules } from './storage.js';
 import { fetchCurrentMarketPrices } from './marketPriceService.js';
-import { fetchCompanyMarketData } from './companyMarketDataService.js';
 import { createTransactionFromForm } from './validation.js';
 import { drawGainLossChart } from './chart.js';
 import { formatMoney, formatQuantity, showMessage, hideMessage, setSelectOptions } from './uiHelpers.js';
 import { calculateFeeForTransaction, calculateMinimumBreakEvenSellPrice, getDefaultFeeRules, normalizeBuyFeeRule, normalizeSellFeeRule } from './feeCalculator.js';
 import { findFirstElement, getErrorMessage, getTodayDateString, setButtonProcessing } from './utils/dom.js';
 import { applyFieldErrors, bindLiveValidationCleanup, clearFormValidation, scrollToFirstInvalidField, setFieldError, validateTransactionFormUi } from './ui/formValidation.js';
-import { renderCompanyFeeSummary, renderCompanyList, renderPortfolioInsights, renderSummary, renderUpcomingEarningsCalendar } from './ui/dashboardRenderer.js';
+import { renderCompanyFeeSummary, renderCompanyList, renderPortfolioInsights, renderSummary } from './ui/dashboardRenderer.js';
 import { refreshTransactionInputSuggestions } from './ui/inputSuggestions.js';
 import { renderCompanySkeleton } from './ui/skeletonLoading.js';
 import { initializeCommandPalette } from './ui/commandPalette.js';
@@ -23,7 +22,6 @@ const sellTickerSelect = document.querySelector('#sellTickerSelect');
 const messageBox = document.querySelector('#messageBox');
 const companyListElement = document.querySelector('#companyList');
 const portfolioInsightsElement = document.querySelector('#portfolioInsights');
-const upcomingEarningsCalendarElement = document.querySelector('#upcomingEarningsCalendar');
 const totalInvestedElement = document.querySelector('#totalInvested');
 const totalRealizedElement = document.querySelector('#totalRealized');
 const totalUnrealizedElement = document.querySelector('#totalUnrealized');
@@ -64,7 +62,6 @@ const companySearchInput = document.querySelector('#companySearchInput');
 
 let transactions = [];
 let latestMarketPriceResults = {};
-let latestCompanyMarketData = {};
 let feeRules = getDefaultFeeRules();
 let isAutomaticallyUpdatingTransactionFee = false;
 let dashboardInitialized = false;
@@ -259,26 +256,21 @@ async function refreshDashboard() {
   const refreshId = ++activeDashboardRefreshId;
   const basePortfolio = calculatePortfolioFromTransactions(transactions);
   const tickers = basePortfolio.holdings.map(holding => holding.ticker);
-  const [marketPriceResults, companyMarketData] = await Promise.all([
-    fetchCurrentMarketPrices(tickers),
-    fetchCompanyMarketData(tickers)
-  ]);
+  const marketPriceResults = await fetchCurrentMarketPrices(tickers);
 
   // If another refresh started while prices were loading, ignore this older result.
   // This prevents tab/auth re-entry races from rendering stale dashboard state.
   if (refreshId !== activeDashboardRefreshId) return;
 
   latestMarketPriceResults = marketPriceResults;
-  latestCompanyMarketData = companyMarketData;
   const marketPricesByTicker = createMarketPricesMap(latestMarketPriceResults);
   const manualPricesByTicker = loadManualCurrentPrices();
   const portfolio = calculatePortfolioWithMarketPrices(basePortfolio, marketPricesByTicker, manualPricesByTicker, latestMarketPriceResults);
 
   renderSummary(portfolio, { totalInvestedElement, totalRealizedElement, totalUnrealizedElement, overallGainLossElement });
-  renderUpcomingEarningsCalendar(portfolio, upcomingEarningsCalendarElement, latestCompanyMarketData);
   renderPortfolioInsights(portfolio, portfolioInsightsElement);
   refreshCompanyFeeSummary();
-  renderCompanyList(portfolio, companyListElement, handleManualPriceSubmit, getCompanySearchText(), latestCompanyMarketData);
+  renderCompanyList(portfolio, companyListElement, handleManualPriceSubmit, getCompanySearchText());
   refreshTransactionInputSuggestions(transactions, transactionForm);
   const openHoldings = basePortfolio.holdings.filter(holding => holding.remainingQuantity > 0);
   setSelectOptions(sellTickerSelect, openHoldings);
@@ -308,9 +300,8 @@ function renderCompanyListForCurrentState() {
   const marketPricesByTicker = createMarketPricesMap(latestMarketPriceResults);
   const manualPricesByTicker = loadManualCurrentPrices();
   const portfolio = calculatePortfolioWithMarketPrices(basePortfolio, marketPricesByTicker, manualPricesByTicker, latestMarketPriceResults);
-  renderUpcomingEarningsCalendar(portfolio, upcomingEarningsCalendarElement, latestCompanyMarketData);
   renderPortfolioInsights(portfolio, portfolioInsightsElement);
-  renderCompanyList(portfolio, companyListElement, handleManualPriceSubmit, getCompanySearchText(), latestCompanyMarketData);
+  renderCompanyList(portfolio, companyListElement, handleManualPriceSubmit, getCompanySearchText());
 }
 
 function getDashboardCommandPaletteItems() {

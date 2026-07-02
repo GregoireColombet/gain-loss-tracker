@@ -131,10 +131,12 @@ function createRemainingSharesLine(holding) {
 }
 
 function createTotalProfitLossLine(combinedGainLoss) {
+  const gainLossClass = getGainLossClass(combinedGainLoss);
+
   return `
-    <p class="company-total-pl-line ${getGainLossClass(combinedGainLoss)}">
-      <span>Total P/L</span>
-      <strong>${formatMoney(combinedGainLoss)}</strong>
+    <p class="company-total-pl-line">
+      <span class="${gainLossClass}">Total P/L</span>
+      <strong class="${gainLossClass}">${formatMoney(combinedGainLoss)}</strong>
     </p>
   `;
 }
@@ -153,117 +155,7 @@ function createManualPriceForm(holding) {
   `;
 }
 
-
-function formatOptionalCurrency(value) {
-  const numericValue = Number(value);
-  return Number.isFinite(numericValue) ? formatMoney(numericValue) : 'Not available';
-}
-
-function formatOptionalPercent(value) {
-  const numericValue = Number(value);
-  if (!Number.isFinite(numericValue)) return 'Not available';
-  return `${numericValue > 0 ? '+' : ''}${numericValue.toFixed(2)}%`;
-}
-
-function formatEarningsBeat(lastEarnings) {
-  if (!lastEarnings) return 'Not available';
-
-  if (Number.isFinite(Number(lastEarnings.surprisePercent))) {
-    return formatOptionalPercent(lastEarnings.surprisePercent);
-  }
-
-  if (Number.isFinite(Number(lastEarnings.surprise))) {
-    return formatMoney(lastEarnings.surprise);
-  }
-
-  if (Number.isFinite(Number(lastEarnings.actual)) && Number.isFinite(Number(lastEarnings.estimate))) {
-    return formatMoney(Number(lastEarnings.actual) - Number(lastEarnings.estimate));
-  }
-
-  return 'Not available';
-}
-
-function calculatePotentialUpside(priceTarget, currentMarketPrice) {
-  const targetMean = Number(priceTarget?.targetMean);
-  const currentPrice = Number(currentMarketPrice);
-
-  if (!Number.isFinite(targetMean) || !Number.isFinite(currentPrice) || currentPrice <= 0) {
-    return null;
-  }
-
-  return ((targetMean - currentPrice) / currentPrice) * 100;
-}
-
-function createCompanyMarketDataBlock(holding, companyMarketData = {}) {
-  const priceTarget = companyMarketData.priceTarget;
-  const potentialUpside = calculatePotentialUpside(priceTarget, holding.currentMarketPrice);
-  const beatValue = companyMarketData.lastEarnings
-    ? Number(companyMarketData.lastEarnings.surprisePercent ?? companyMarketData.lastEarnings.surprise)
-    : null;
-
-  return `
-    <div class="company-metrics company-market-data" aria-label="Company market data">
-      <span><small>Next earnings</small><b>${companyMarketData.nextEarnings?.date || 'Not available'}</b></span>
-      <span><small>Last earnings beat by</small><b class="${getGainLossClass(beatValue)}">${formatEarningsBeat(companyMarketData.lastEarnings)}</b></span>
-      <span><small>Analyst target</small><b>${formatOptionalCurrency(priceTarget?.targetMean)}</b></span>
-      <span><small>Potential upside</small><b class="${getGainLossClass(potentialUpside)}">${formatOptionalPercent(potentialUpside)}</b></span>
-    </div>
-  `;
-}
-
-function createCompanyPeersDetails(companyMarketData = {}) {
-  const peers = Array.isArray(companyMarketData.peers)
-    ? companyMarketData.peers.filter(Boolean)
-    : [];
-
-  const peerItemsHtml = peers.length
-    ? peers.map(peer => `<li>${peer}</li>`).join('')
-    : '<li>No peers available.</li>';
-
-  return `
-    <details class="company-history-details company-peers-details">
-      <summary>Company peers</summary>
-      <ul class="transaction-history company-peers-list">${peerItemsHtml}</ul>
-    </details>
-  `;
-}
-
-function collectUpcomingEarningsItems(portfolio, companyMarketDataByTicker = {}) {
-  return (portfolio?.holdings || [])
-    .map(holding => {
-      const marketData = companyMarketDataByTicker[holding.ticker] || {};
-      if (!marketData.nextEarnings?.date) return null;
-      return {
-        ticker: holding.ticker,
-        companyName: holding.companyName,
-        date: marketData.nextEarnings.date
-      };
-    })
-    .filter(Boolean)
-    .sort((firstItem, secondItem) => String(firstItem.date).localeCompare(String(secondItem.date)))
-    .slice(0, 6);
-}
-
-export function renderUpcomingEarningsCalendar(portfolio, container, companyMarketDataByTicker = {}) {
-  if (!container) return;
-
-  const upcomingEarnings = collectUpcomingEarningsItems(portfolio, companyMarketDataByTicker);
-
-  if (!upcomingEarnings.length) {
-    container.innerHTML = '<p class="empty-state empty-state-card">No upcoming earnings found for tracked companies.</p>';
-    return;
-  }
-
-  container.innerHTML = upcomingEarnings.map(item => `
-    <a class="insight-card" href="#company-${String(item.ticker || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}">
-      <span>Upcoming earnings</span>
-      <strong>${item.date}</strong>
-      <small>${item.companyName} (${item.ticker})</small>
-    </a>
-  `).join('');
-}
-
-export function renderCompanyList(portfolio, companyListElement, onManualPriceSubmit, filterText = '', companyMarketDataByTicker = {}) {
+export function renderCompanyList(portfolio, companyListElement, onManualPriceSubmit, filterText = '') {
   companyListElement.innerHTML = '';
 
   if (!portfolio.holdings.length) {
@@ -286,7 +178,6 @@ export function renderCompanyList(portfolio, companyListElement, onManualPriceSu
   }
 
   sortedHoldings.forEach(holding => {
-    const companyMarketData = companyMarketDataByTicker[holding.ticker] || {};
     const companyCard = document.createElement('article');
     companyCard.className = 'company-card';
     companyCard.id = `company-${String(holding.ticker || '').toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
@@ -331,8 +222,6 @@ export function renderCompanyList(portfolio, companyListElement, onManualPriceSu
         <summary>Transaction history</summary>
         <ul class="transaction-history">${transactionHistoryHtml}</ul>
       </details>
-      ${createCompanyMarketDataBlock(holding, companyMarketData)}
-      ${createCompanyPeersDetails(companyMarketData)}
       ${createManualPriceForm(holding)}
     `;
 
