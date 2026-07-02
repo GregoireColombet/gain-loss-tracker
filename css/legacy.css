@@ -2808,3 +2808,19 @@ input[type="range"] {
     grid-template-columns: 1fr;
   }
 }
+
+.manual-price-details .manual-price-form {
+  margin-top: 12px;
+  padding: 0;
+  background: transparent;
+}
+
+.manual-price-details .manual-price-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.manual-price-details .manual-price-row input {
+  flex: 1;
+}

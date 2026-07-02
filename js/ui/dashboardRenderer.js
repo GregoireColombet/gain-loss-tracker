@@ -145,13 +145,15 @@ function createManualPriceForm(holding) {
   if (holding.remainingQuantity <= 0) return '';
 
   return `
-    <form class="manual-price-form" data-ticker="${holding.ticker}">
-      <label>Enter manual price</label>
-      <div class="manual-price-row">
-        <input type="number" step="0.000001" min="0" name="manualPrice" placeholder="Manual price">
-        <button type="submit" class="secondary-button">Save</button>
-      </div>
-    </form>
+    <details class="company-history-details manual-price-details">
+      <summary>Enter manual price</summary>
+      <form class="manual-price-form" data-ticker="${holding.ticker}">
+        <div class="manual-price-row">
+          <input type="number" step="0.000001" min="0" name="manualPrice" placeholder="Manual price">
+          <button type="submit" class="secondary-button">Save</button>
+        </div>
+      </form>
+    </details>
   `;
 }
 
