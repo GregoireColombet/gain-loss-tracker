@@ -3,7 +3,7 @@ import { calculatePortfolioFromTransactions, calculatePortfolioWithMarketPrices,
 import { loadInitialTransactions, loadManualCurrentPrices, saveManualCurrentPrice, saveTransactions, exportTransactionsAsJson, importTransactionsFromFile, loadFeeRules, saveFeeRules } from './storage.js';
 import { fetchCurrentMarketPrices } from './marketPriceService.js';
 import { createTransactionFromForm } from './validation.js';
-import { drawGainLossChart } from './chart.js';
+import { drawGainLossChart, formatGraphDisplayValue } from './chart.js';
 import { formatMoney, formatQuantity, showMessage, hideMessage, setSelectOptions } from './uiHelpers.js';
 import { calculateFeeForTransaction, calculateMinimumBreakEvenSellPrice, getDefaultFeeRules, normalizeBuyFeeRule, normalizeSellFeeRule } from './feeCalculator.js';
 import { findFirstElement, getErrorMessage, getTodayDateString, setButtonProcessing } from './utils/dom.js';
@@ -28,9 +28,9 @@ const totalUnrealizedElement = document.querySelector('#totalUnrealized');
 const overallGainLossElement = document.querySelector('#overallGainLoss');
 const chartCanvas = document.querySelector('#gainLossChart');
 const gainLossPeriodInputs = document.querySelectorAll('input[name="gainLossPeriod"]');
-const gainLossDisplayUnitInputs = document.querySelectorAll('input[name="gainLossDisplayUnit"]');
 const gainLossStartDateInput = document.querySelector('#gainLossStartDate');
 const gainLossEndDateInput = document.querySelector('#gainLossEndDate');
+const gainLossChartValueSummaryElement = document.querySelector('#gainLossChartValueSummary');
 const resetGainLossRangeButton = document.querySelector('#resetGainLossRangeButton');
 const exportButton = document.querySelector('#exportButton');
 const importInput = document.querySelector('#importInput');
@@ -240,8 +240,7 @@ function bindDashboardEvents() {
   breakEvenForm?.addEventListener('submit', handleBreakEvenFormSubmit);
   saveFeeRuleButton?.addEventListener('click', handleSaveFeeRules);
   breakEvenTickerSelect?.addEventListener('change', handleBreakEvenTickerChange);
-  gainLossPeriodInputs.forEach(input => input.addEventListener('change', renderGainLossChart));
-  gainLossDisplayUnitInputs.forEach(input => input.addEventListener('change', renderGainLossChart));
+  gainLossPeriodInputs.forEach(input => input.addEventListener('change', handleGainLossRangeChange));
   gainLossStartDateInput?.addEventListener('change', renderGainLossChart);
   gainLossEndDateInput?.addEventListener('change', renderGainLossChart);
   resetGainLossRangeButton?.addEventListener('click', handleResetGainLossRange);
@@ -336,7 +335,11 @@ function renderGainLossChart() {
   if (!chartCanvas) return;
   const chartOptions = getGainLossChartOptions();
   const timelineData = createGainLossTimeline(transactions, chartOptions);
-  const canvasWidth = calculateChartCanvasWidth(timelineData.length, chartOptions.range);
+  const canvasWidth = calculateChartCanvasWidth(
+    timelineData.length,
+    chartOptions.range,
+    chartCanvas.parentElement?.clientWidth || CHART_MIN_WIDTH
+  );
 
   // Keep the visible chart viewport stable. The canvas expands only inside the
   // horizontal scroll area when a range has many points.
@@ -345,7 +348,8 @@ function renderGainLossChart() {
   chartCanvas.style.width = `${canvasWidth}px`;
   chartCanvas.style.height = `${CHART_VIEWPORT_HEIGHT}px`;
 
-  drawGainLossChart(chartCanvas, timelineData, { displayUnit: getSelectedGainLossDisplayUnit() });
+  updateGainLossChartValueSummary(timelineData);
+  drawGainLossChart(chartCanvas, timelineData);
 }
 
 function getGainLossChartOptions() {
@@ -388,12 +392,7 @@ function getStartDateForRange(range, endDateValue) {
   return endDate.toISOString().slice(0, 10);
 }
 
-function getSelectedGainLossDisplayUnit() {
-  const selectedInput = [...gainLossDisplayUnitInputs].find(input => input.checked);
-  return selectedInput?.value || 'compact';
-}
-
-function calculateChartCanvasWidth(numberOfPoints, selectedRange) {
+function calculateChartCanvasWidth(numberOfPoints, selectedRange, viewportWidth = CHART_MIN_WIDTH) {
   const spacingByRange = {
     '1d': 120,
     '1m': 56,
@@ -403,7 +402,33 @@ function calculateChartCanvasWidth(numberOfPoints, selectedRange) {
     all: 96
   };
   const spacing = spacingByRange[selectedRange] || spacingByRange['1m'];
-  return Math.max(CHART_MIN_WIDTH, numberOfPoints * spacing);
+  return Math.max(CHART_MIN_WIDTH, viewportWidth, numberOfPoints * spacing);
+}
+
+function handleGainLossRangeChange() {
+  // Range presets should control the X-axis scale. Clear the optional custom
+  // start date so a previous manual range does not make every preset look the same.
+  if (gainLossStartDateInput) gainLossStartDateInput.value = '';
+  if (gainLossEndDateInput) gainLossEndDateInput.value = getTodayDateString();
+  renderGainLossChart();
+}
+
+function updateGainLossChartValueSummary(timelineData) {
+  if (!gainLossChartValueSummaryElement) return;
+
+  if (!timelineData.length) {
+    gainLossChartValueSummaryElement.textContent = '';
+    return;
+  }
+
+  const values = timelineData.map(item => item.value);
+  const minimumValue = Math.min(...values, 0);
+  const maximumValue = Math.max(...values, 0);
+
+  gainLossChartValueSummaryElement.innerHTML = `
+    <span><strong>Min</strong> ${formatGraphDisplayValue(minimumValue)}</span>
+    <span><strong>Max</strong> ${formatGraphDisplayValue(maximumValue)}</span>
+  `;
 }
 
 function initializeDefaultGainLossDateRange() {

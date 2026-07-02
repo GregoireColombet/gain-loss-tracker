@@ -155,12 +155,11 @@ assert.deepEqual(monthlyTimeline.map(point => point.label), ['Jan 2024', 'Feb 20
 nearlyEqual(monthlyTimeline.at(-1).value, portfolio.totalRealizedGainLoss, 'timeline ending after all test trades should equal total realized gain/loss');
 
 
-assert.equal(formatGraphDisplayValue(999, 'compact'), '999', 'compact graph value below 1000 should stay raw');
-assert.equal(formatGraphDisplayValue(1000, 'compact'), '1k', 'compact graph value should use k for 1000');
-assert.equal(formatGraphDisplayValue(1500, 'compact'), '1.5k', 'compact graph value should keep useful decimal for thousands');
-assert.equal(formatGraphDisplayValue(2000, 'compact'), '2k', 'compact graph value should remove unnecessary decimals');
-assert.equal(formatGraphDisplayValue(1250000, 'compact'), '1.25M', 'compact graph value should use M above one million');
-assert.equal(formatGraphDisplayValue(125000, 'raw').replace(/,/g, ''), '125000', 'raw graph value should preserve full number');
+assert.equal(formatGraphDisplayValue(999), '999', 'compact graph value below 1000 should stay raw');
+assert.equal(formatGraphDisplayValue(1000), '1k', 'compact graph value should use k for 1000');
+assert.equal(formatGraphDisplayValue(1500), '1.5k', 'compact graph value should keep useful decimal for thousands');
+assert.equal(formatGraphDisplayValue(2000), '2k', 'compact graph value should remove unnecessary decimals');
+assert.equal(formatGraphDisplayValue(1250000), '1.25M', 'compact graph value should use M above one million');
 
 
 
@@ -176,5 +175,5 @@ nearlyEqual(calculateFeeForTransaction('SELL', 200, 10, separatedFeeRules), 20, 
 const invalidRangeTimeline = createGainLossTimeline(transactions, { period: 'day', startDate: '2024-03-01', endDate: '2024-01-01' });
 assert.equal(invalidRangeTimeline.length, 0, 'invalid date ranges should draw an empty chart instead of crashing');
 
-console.log('All portfolio calculation, propagation, validation, API-failure, dashboard company-list sort, transaction history sort, sort, chart range grouping, graph display-unit, default transaction fee-rule, and break-even fee tests passed.');
+console.log('All portfolio calculation, propagation, validation, API-failure, dashboard company-list sort, transaction history sort, sort, chart range grouping, default transaction fee-rule, and break-even fee tests passed.');
 

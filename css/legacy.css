@@ -962,7 +962,7 @@ tbody tr:hover {
   align-items: end;
   display: grid;
   gap: 1rem;
-  grid-template-columns: minmax(280px, 0.85fr) minmax(180px, 0.55fr) minmax(320px, 1.4fr);
+  grid-template-columns: minmax(280px, 0.9fr) minmax(320px, 1.4fr);
   margin-bottom: 1rem;
 }
 
@@ -978,10 +978,6 @@ tbody tr:hover {
 
 .period-control {
   grid-template-columns: repeat(6, 1fr);
-}
-
-.display-unit-control {
-  grid-template-columns: repeat(2, 1fr);
 }
 
 .segmented-control legend {
@@ -1057,8 +1053,7 @@ tbody tr:hover {
     gap: 0.8rem;
   }
 
-  .period-control,
-  .display-unit-control {
+  .period-control {
     grid-template-columns: repeat(2, 1fr);
   }
 
@@ -1133,6 +1128,24 @@ button,
 input,
 select {
   max-width: 100%;
+}
+
+
+.chart-value-summary {
+  align-items: center;
+  color: var(--muted-text-color);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem 1rem;
+  justify-content: flex-end;
+  margin: -0.2rem 0 0.55rem;
+  min-height: 1.25rem;
+  font-size: 0.86rem;
+}
+
+.chart-value-summary strong {
+  color: var(--text-color);
+  font-weight: 800;
 }
 
 /* Only the graph keeps horizontal scrolling. The canvas width is set by JS. */

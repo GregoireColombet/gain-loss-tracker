@@ -103,3 +103,10 @@
   min-width: 900px;
   max-width: none;
 }
+
+
+.overall-curve-panel .chart-value-summary {
+  align-items: center;
+  display: flex;
+  justify-content: flex-end;
+}

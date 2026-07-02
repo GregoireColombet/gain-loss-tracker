@@ -67,5 +67,5 @@ This file updates both transaction and fee settings database structure.
 Local validation passed:
 
 ```text
-All portfolio calculation, propagation, validation, API-failure, sort, chart range grouping, graph display-unit, default transaction fee-rule, and break-even fee tests passed.
+All portfolio calculation, propagation, validation, API-failure, sort, chart range grouping, default transaction fee-rule, and break-even fee tests passed.
 ```

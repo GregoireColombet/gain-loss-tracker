@@ -104,17 +104,6 @@
             <span>ALL</span>
           </label>
         </fieldset>
-        <fieldset class="segmented-control display-unit-control">
-          <legend>Display units</legend>
-          <label>
-            <input type="radio" name="gainLossDisplayUnit" value="raw">
-            <span>Raw</span>
-          </label>
-          <label>
-            <input type="radio" name="gainLossDisplayUnit" value="compact" checked>
-            <span>Compact</span>
-          </label>
-        </fieldset>
         <div class="date-range-controls">
           <label>
             Start date optional
@@ -127,6 +116,7 @@
           <button id="resetGainLossRangeButton" type="button" class="secondary-button">Reset range</button>
         </div>
       </div>
+      <div id="gainLossChartValueSummary" class="chart-value-summary" aria-live="polite"></div>
       <div class="chart-scroll-wrapper">
         <canvas id="gainLossChart" width="900" height="320" aria-label="Gain loss chart"></canvas>
       </div>
