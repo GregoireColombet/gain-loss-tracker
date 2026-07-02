@@ -40,14 +40,11 @@
 }
 
 .company-total-pl-line span {
+  color: var(--muted-text-color);
   font-size: 0.74rem;
   font-weight: 900;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-}
-
-.company-total-pl-line span:not(.positive-value):not(.negative-value):not(.neutral-value) {
-  color: var(--muted-text-color);
 }
 
 .company-total-pl-line strong {
@@ -88,4 +85,21 @@
   .manual-price-row button {
     width: 100%;
   }
+}
+
+.dashboard-subsection-header {
+  margin: var(--space-4, 1.25rem) 0 var(--space-3, 0.85rem);
+}
+
+.dashboard-subsection-header h3 {
+  margin-bottom: 0.25rem;
+}
+
+.dashboard-subsection-header p {
+  color: var(--muted-text-color);
+  margin-bottom: 0;
+}
+
+.upcoming-earnings-grid {
+  margin-bottom: var(--space-4, 1.25rem);
 }

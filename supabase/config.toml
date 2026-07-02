@@ -3,3 +3,6 @@ verify_jwt = false
 
 [functions.generate-company-analysis]
 verify_jwt = false
+
+[functions.get-company-market-data]
+verify_jwt = false
