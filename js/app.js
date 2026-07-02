@@ -329,24 +329,63 @@ function handleResetCompanyFeeRange() {
   refreshCompanyFeeSummary();
 }
 
+const CHART_VIEWPORT_HEIGHT = 320;
+const CHART_MIN_WIDTH = 900;
+
 function renderGainLossChart() {
   if (!chartCanvas) return;
-  const timelineData = createGainLossTimeline(transactions, getGainLossChartOptions());
-  chartCanvas.width = calculateChartCanvasWidth(timelineData.length);
+  const chartOptions = getGainLossChartOptions();
+  const timelineData = createGainLossTimeline(transactions, chartOptions);
+  const canvasWidth = calculateChartCanvasWidth(timelineData.length, chartOptions.range);
+
+  // Keep the visible chart viewport stable. The canvas expands only inside the
+  // horizontal scroll area when a range has many points.
+  chartCanvas.width = canvasWidth;
+  chartCanvas.height = CHART_VIEWPORT_HEIGHT;
+  chartCanvas.style.width = `${canvasWidth}px`;
+  chartCanvas.style.height = `${CHART_VIEWPORT_HEIGHT}px`;
+
   drawGainLossChart(chartCanvas, timelineData, { displayUnit: getSelectedGainLossDisplayUnit() });
 }
 
 function getGainLossChartOptions() {
+  const selectedRange = getSelectedGainLossRange();
+  const endDate = gainLossEndDateInput?.value || getTodayDateString();
+  const explicitStartDate = gainLossStartDateInput?.value || '';
+
   return {
-    period: getSelectedGainLossPeriod(),
-    startDate: gainLossStartDateInput?.value || '',
-    endDate: gainLossEndDateInput?.value || getTodayDateString()
+    range: selectedRange,
+    period: getBucketPeriodForRange(selectedRange),
+    startDate: explicitStartDate || getStartDateForRange(selectedRange, endDate),
+    endDate
   };
 }
 
-function getSelectedGainLossPeriod() {
+function getSelectedGainLossRange() {
   const selectedInput = [...gainLossPeriodInputs].find(input => input.checked);
-  return selectedInput?.value || 'week';
+  return selectedInput?.value || '1m';
+}
+
+function getBucketPeriodForRange(range) {
+  if (range === '1d' || range === '1m') return 'day';
+  if (range === '3m' || range === '6m') return 'week';
+  if (range === '1y' || range === 'all') return 'month';
+  return 'week';
+}
+
+function getStartDateForRange(range, endDateValue) {
+  if (range === 'all') return '';
+
+  const endDate = new Date(`${endDateValue}T00:00:00`);
+  if (Number.isNaN(endDate.getTime())) return '';
+
+  if (range === '1d') endDate.setDate(endDate.getDate());
+  if (range === '1m') endDate.setMonth(endDate.getMonth() - 1);
+  if (range === '3m') endDate.setMonth(endDate.getMonth() - 3);
+  if (range === '6m') endDate.setMonth(endDate.getMonth() - 6);
+  if (range === '1y') endDate.setFullYear(endDate.getFullYear() - 1);
+
+  return endDate.toISOString().slice(0, 10);
 }
 
 function getSelectedGainLossDisplayUnit() {
@@ -354,11 +393,17 @@ function getSelectedGainLossDisplayUnit() {
   return selectedInput?.value || 'compact';
 }
 
-function calculateChartCanvasWidth(numberOfPoints) {
-  const selectedPeriod = getSelectedGainLossPeriod();
-  const spacingByPeriod = { day: 72, week: 96, month: 112, year: 128 };
-  const spacing = spacingByPeriod[selectedPeriod] || spacingByPeriod.week;
-  return Math.max(900, numberOfPoints * spacing);
+function calculateChartCanvasWidth(numberOfPoints, selectedRange) {
+  const spacingByRange = {
+    '1d': 120,
+    '1m': 56,
+    '3m': 72,
+    '6m': 72,
+    '1y': 88,
+    all: 96
+  };
+  const spacing = spacingByRange[selectedRange] || spacingByRange['1m'];
+  return Math.max(CHART_MIN_WIDTH, numberOfPoints * spacing);
 }
 
 function initializeDefaultGainLossDateRange() {

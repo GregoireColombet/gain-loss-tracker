@@ -89,3 +89,17 @@
     width: 100%;
   }
 }
+
+/* Fixed-size chart viewport: data can scroll horizontally without resizing the card. */
+.overall-curve-panel .chart-scroll-wrapper {
+  box-sizing: border-box;
+  height: 356px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.overall-curve-panel .chart-scroll-wrapper canvas {
+  height: 320px;
+  min-width: 900px;
+  max-width: none;
+}

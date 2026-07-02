@@ -977,7 +977,7 @@ tbody tr:hover {
 }
 
 .period-control {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(6, 1fr);
 }
 
 .display-unit-control {
@@ -1135,7 +1135,7 @@ select {
   max-width: 100%;
 }
 
-/* Only the graph keeps horizontal scrolling. */
+/* Only the graph keeps horizontal scrolling. The canvas width is set by JS. */
 .chart-scroll-wrapper {
   max-width: 100%;
   overflow-x: auto;
@@ -1143,7 +1143,6 @@ select {
 }
 
 .chart-scroll-wrapper canvas {
-  width: max(100%, 760px);
   max-width: none;
 }
 
@@ -1186,9 +1185,6 @@ td {
     width: 100%;
   }
 
-  .chart-scroll-wrapper canvas {
-    width: 680px;
-  }
 
   /* Mobile-friendly transaction table: convert rows to cards, no horizontal scroll. */
   .table-scroll-wrapper table,
@@ -1269,10 +1265,6 @@ td {
     padding-inline: 12px;
   }
 
-  .chart-scroll-wrapper canvas {
-    width: 620px;
-    min-width: 620px;
-  }
 }
 
 @media (max-width: 420px) {
@@ -1284,10 +1276,6 @@ td {
     padding-inline: 8px;
   }
 
-  .chart-scroll-wrapper canvas {
-    width: 560px;
-    min-width: 560px;
-  }
 }
 
 .fee-rule-settings {
