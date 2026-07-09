@@ -90,15 +90,44 @@
   }
 }
 
+.overall-curve-panel .chart-frame {
+  background: linear-gradient(180deg, #ffffff, #f8fafc);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 16px;
+  box-sizing: border-box;
+  display: flex;
+  height: 356px;
+  max-width: 100%;
+  overflow: hidden;
+  padding: 12px;
+}
+
+.overall-curve-panel .chart-y-axis-canvas {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  flex: 0 0 78px;
+  height: 320px;
+  min-width: 78px;
+}
+
 /* Fixed-size chart viewport: data can scroll horizontally without resizing the card. */
 .overall-curve-panel .chart-scroll-wrapper {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   box-sizing: border-box;
-  height: 356px;
+  flex: 1 1 auto;
+  height: 320px;
   overflow-x: auto;
   overflow-y: hidden;
+  padding: 0;
 }
 
 .overall-curve-panel .chart-scroll-wrapper canvas {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
   height: 320px;
   min-width: 900px;
   max-width: none;

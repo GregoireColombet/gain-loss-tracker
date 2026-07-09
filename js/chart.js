@@ -1,8 +1,12 @@
-export function drawGainLossChart(canvasElement, timelineData) {
+export function drawGainLossChart(canvasElement, timelineData, options = {}) {
   const context = canvasElement.getContext('2d');
   const width = canvasElement.width;
   const height = canvasElement.height;
+  const yAxisCanvas = options.yAxisCanvas || null;
   context.clearRect(0, 0, width, height);
+  if (yAxisCanvas) {
+    yAxisCanvas.getContext('2d').clearRect(0, 0, yAxisCanvas.width, yAxisCanvas.height);
+  }
 
   if (!timelineData.length) {
     drawEmptyChart(context, width, height, 'No realized gain/loss history in this range.');
@@ -13,17 +17,20 @@ export function drawGainLossChart(canvasElement, timelineData) {
   const minimumValue = Math.min(...values, 0);
   const maximumValue = Math.max(...values, 0);
   const range = maximumValue - minimumValue || 1;
-  const padding = { top: 24, right: 30, bottom: 54, left: 68 };
+  const padding = { top: 24, right: 30, bottom: 54, left: yAxisCanvas ? 0 : 68 };
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
 
-  drawGrid(context, width, padding, minimumValue, maximumValue, range, chartHeight);
+  drawGrid(context, width, padding, minimumValue, maximumValue, range, chartHeight, !yAxisCanvas);
+  if (yAxisCanvas) {
+    drawYAxis(yAxisCanvas, padding, minimumValue, maximumValue, range, chartHeight);
+  }
   drawCurve(context, timelineData, values, padding, chartWidth, chartHeight, minimumValue, range);
   drawXAxisLabels(context, timelineData, padding, chartWidth, height);
   updateCanvasTooltip(canvasElement, timelineData);
 }
 
-function drawGrid(context, width, padding, minimumValue, maximumValue, range, chartHeight) {
+function drawGrid(context, width, padding, minimumValue, maximumValue, range, chartHeight, shouldDrawYLabels = true) {
   context.lineWidth = 1;
   context.strokeStyle = 'rgba(148, 163, 184, 0.26)';
   context.fillStyle = '#64748b';
@@ -38,7 +45,9 @@ function drawGrid(context, width, padding, minimumValue, maximumValue, range, ch
     context.moveTo(padding.left, y);
     context.lineTo(width - padding.right, y);
     context.stroke();
-    context.fillText(formatGraphDisplayValue(tickValue), padding.left - 10, y);
+    if (shouldDrawYLabels) {
+      context.fillText(formatGraphDisplayValue(tickValue), padding.left - 10, y);
+    }
   }
 
   const zeroY = padding.top + chartHeight - ((0 - minimumValue) / range) * chartHeight;
@@ -51,6 +60,30 @@ function drawGrid(context, width, padding, minimumValue, maximumValue, range, ch
 
   context.textAlign = 'left';
   context.textBaseline = 'alphabetic';
+}
+
+function drawYAxis(canvasElement, padding, minimumValue, maximumValue, range, chartHeight) {
+  const context = canvasElement.getContext('2d');
+  const width = canvasElement.width;
+
+  context.clearRect(0, 0, width, canvasElement.height);
+  context.fillStyle = '#64748b';
+  context.font = '11px Inter, Arial, sans-serif';
+  context.textAlign = 'right';
+  context.textBaseline = 'middle';
+
+  for (let index = 0; index <= 4; index += 1) {
+    const y = padding.top + (index / 4) * chartHeight;
+    const tickValue = maximumValue - (index / 4) * range;
+    context.fillText(formatGraphDisplayValue(tickValue), width - 12, y);
+  }
+
+  context.strokeStyle = 'rgba(148, 163, 184, 0.24)';
+  context.beginPath();
+  context.moveTo(width - 1, padding.top);
+  context.lineTo(width - 1, padding.top + chartHeight);
+  context.stroke();
+  context.textAlign = 'left';
 }
 
 function drawCurve(context, timelineData, values, padding, chartWidth, chartHeight, minimumValue, range) {

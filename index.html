@@ -80,15 +80,7 @@
         <fieldset class="segmented-control period-control chart-range-control">
           <legend>Time range</legend>
           <label>
-            <input type="radio" name="gainLossPeriod" value="1d">
-            <span>1D</span>
-          </label>
-          <label>
-            <input type="radio" name="gainLossPeriod" value="1m" checked>
-            <span>1M</span>
-          </label>
-          <label>
-            <input type="radio" name="gainLossPeriod" value="3m">
+            <input type="radio" name="gainLossPeriod" value="3m" checked>
             <span>3M</span>
           </label>
           <label>
@@ -117,8 +109,11 @@
         </div>
       </div>
       <div id="gainLossChartValueSummary" class="chart-value-summary" aria-live="polite"></div>
-      <div class="chart-scroll-wrapper">
-        <canvas id="gainLossChart" width="900" height="320" aria-label="Gain loss chart"></canvas>
+      <div class="chart-frame">
+        <canvas id="gainLossYAxisChart" class="chart-y-axis-canvas" width="78" height="320" aria-hidden="true"></canvas>
+        <div class="chart-scroll-wrapper">
+          <canvas id="gainLossChart" width="900" height="320" aria-label="Gain loss chart"></canvas>
+        </div>
       </div>
       <div class="chart-fee-summary-block" aria-labelledby="chartFeeSummaryTitle">
         <div class="company-fee-summary" aria-live="polite">

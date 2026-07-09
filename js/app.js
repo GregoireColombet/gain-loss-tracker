@@ -27,6 +27,7 @@ const totalRealizedElement = document.querySelector('#totalRealized');
 const totalUnrealizedElement = document.querySelector('#totalUnrealized');
 const overallGainLossElement = document.querySelector('#overallGainLoss');
 const chartCanvas = document.querySelector('#gainLossChart');
+const chartYAxisCanvas = document.querySelector('#gainLossYAxisChart');
 const gainLossPeriodInputs = document.querySelectorAll('input[name="gainLossPeriod"]');
 const gainLossStartDateInput = document.querySelector('#gainLossStartDate');
 const gainLossEndDateInput = document.querySelector('#gainLossEndDate');
@@ -347,9 +348,15 @@ function renderGainLossChart() {
   chartCanvas.height = CHART_VIEWPORT_HEIGHT;
   chartCanvas.style.width = `${canvasWidth}px`;
   chartCanvas.style.height = `${CHART_VIEWPORT_HEIGHT}px`;
+  if (chartYAxisCanvas) {
+    chartYAxisCanvas.width = 78;
+    chartYAxisCanvas.height = CHART_VIEWPORT_HEIGHT;
+    chartYAxisCanvas.style.width = '78px';
+    chartYAxisCanvas.style.height = `${CHART_VIEWPORT_HEIGHT}px`;
+  }
 
   updateGainLossChartValueSummary(timelineData);
-  drawGainLossChart(chartCanvas, timelineData);
+  drawGainLossChart(chartCanvas, timelineData, { yAxisCanvas: chartYAxisCanvas });
 }
 
 function getGainLossChartOptions() {
@@ -367,11 +374,10 @@ function getGainLossChartOptions() {
 
 function getSelectedGainLossRange() {
   const selectedInput = [...gainLossPeriodInputs].find(input => input.checked);
-  return selectedInput?.value || '1m';
+  return selectedInput?.value || '3m';
 }
 
 function getBucketPeriodForRange(range) {
-  if (range === '1d' || range === '1m') return 'day';
   if (range === '3m' || range === '6m') return 'week';
   if (range === '1y' || range === 'all') return 'month';
   return 'week';
@@ -383,8 +389,6 @@ function getStartDateForRange(range, endDateValue) {
   const endDate = new Date(`${endDateValue}T00:00:00`);
   if (Number.isNaN(endDate.getTime())) return '';
 
-  if (range === '1d') endDate.setDate(endDate.getDate());
-  if (range === '1m') endDate.setMonth(endDate.getMonth() - 1);
   if (range === '3m') endDate.setMonth(endDate.getMonth() - 3);
   if (range === '6m') endDate.setMonth(endDate.getMonth() - 6);
   if (range === '1y') endDate.setFullYear(endDate.getFullYear() - 1);
@@ -394,14 +398,12 @@ function getStartDateForRange(range, endDateValue) {
 
 function calculateChartCanvasWidth(numberOfPoints, selectedRange, viewportWidth = CHART_MIN_WIDTH) {
   const spacingByRange = {
-    '1d': 120,
-    '1m': 56,
     '3m': 72,
     '6m': 72,
     '1y': 88,
     all: 96
   };
-  const spacing = spacingByRange[selectedRange] || spacingByRange['1m'];
+  const spacing = spacingByRange[selectedRange] || spacingByRange['3m'];
   return Math.max(CHART_MIN_WIDTH, viewportWidth, numberOfPoints * spacing);
 }
 

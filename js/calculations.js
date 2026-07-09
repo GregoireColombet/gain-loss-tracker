@@ -301,18 +301,8 @@ function getBucketEndDate(bucketStart, period, maximumEndDate) {
 }
 
 function createBucketLabel(date, period) {
-  if (period === 'day') {
-    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  }
-
-  if (period === 'month') {
-    return date.toLocaleDateString(undefined, { month: 'short', year: 'numeric' });
-  }
-
-  if (period === 'year') {
-    return String(date.getFullYear());
-  }
-
-  return `Week of ${date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = String(date.getFullYear()).slice(-2);
+  return `${day}/${month}/${year}`;
 }
-
