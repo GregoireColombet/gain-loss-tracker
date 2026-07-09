@@ -21,6 +21,20 @@
 .company-identity h3 span { color: var(--muted-text-color); font-weight: 800; }
 .company-metrics small { display: block; color: var(--muted-text-color); font-size: .72rem; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
 .company-metrics b { display: block; margin-top: 4px; font-size: 1rem; }
+.company-metrics .company-metric-unrealized-positive {
+  background: linear-gradient(180deg, rgba(16, 185, 129, 0.12), rgba(236, 253, 245, 0.84));
+  border-color: rgba(16, 185, 129, 0.32);
+}
+.company-metrics .company-metric-unrealized-negative {
+  background: linear-gradient(180deg, rgba(239, 68, 68, 0.11), rgba(254, 242, 242, 0.86));
+  border-color: rgba(239, 68, 68, 0.3);
+}
+.company-metrics .company-metric-unrealized-positive small {
+  color: #047857;
+}
+.company-metrics .company-metric-unrealized-negative small {
+  color: #b91c1c;
+}
 @media (max-width: 900px) { .portfolio-insights-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .portfolio-insights-grid { grid-template-columns: 1fr; } }
 

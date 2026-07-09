@@ -204,6 +204,10 @@ export function renderCompanyList(portfolio, companyListElement, onManualPriceSu
     const combinedGainLoss = holding.realizedGainLoss + (holding.unrealizedGainLoss || 0);
     const holdingStatus = holding.remainingQuantity > 0 ? 'Open position' : 'Closed position';
     const holdingStatusClass = holding.remainingQuantity > 0 ? 'status-pill-open' : 'status-pill-closed';
+    const unrealizedGainLossClass = getGainLossClass(holding.unrealizedGainLoss);
+    const unrealizedMetricToneClass = holding.remainingQuantity > 0
+      ? `company-metric-unrealized-${unrealizedGainLossClass.replace('-value', '')}`
+      : 'company-metric-unrealized-neutral';
 
     companyCard.innerHTML = `
       <div class="company-card-header">
@@ -218,7 +222,7 @@ export function renderCompanyList(portfolio, companyListElement, onManualPriceSu
         <span><small>Average price</small><b>${formatMoney(holding.averagePrice)}</b></span>
         <span${getMarketPriceSourceTitle(holding)}><small>Current price</small><b>${currentPriceText} ${getMarketPriceSourceBadge(holding)}</b></span>
         <span><small>Realized</small><b class="${getGainLossClass(holding.realizedGainLoss)}">${formatMoney(holding.realizedGainLoss)}</b></span>
-        <span><small>Unrealized</small><b class="${getGainLossClass(holding.unrealizedGainLoss)}">${formatMoney(holding.unrealizedGainLoss)}</b></span>
+        <span class="company-metric-unrealized ${unrealizedMetricToneClass}"><small>Unrealized</small><b class="${unrealizedGainLossClass}">${formatMoney(holding.unrealizedGainLoss)}</b></span>
       </div>
       <details class="company-history-details">
         <summary>Transaction history</summary>
