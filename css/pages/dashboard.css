@@ -111,6 +111,12 @@
   min-width: 78px;
 }
 
+.overall-curve-panel .chart-range-control {
+  grid-template-columns: repeat(4, minmax(62px, 1fr));
+  justify-self: start;
+  width: max-content;
+}
+
 /* Fixed-size chart viewport: data can scroll horizontally without resizing the card. */
 .overall-curve-panel .chart-scroll-wrapper {
   background: transparent;
@@ -122,6 +128,7 @@
   overflow-x: auto;
   overflow-y: hidden;
   padding: 0;
+  position: relative;
 }
 
 .overall-curve-panel .chart-scroll-wrapper canvas {
@@ -133,9 +140,50 @@
   max-width: none;
 }
 
+.overall-curve-panel .chart-point-tooltip {
+  background: rgba(15, 23, 42, 0.92);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.22);
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1.35;
+  opacity: 0;
+  padding: 0.45rem 0.6rem;
+  pointer-events: none;
+  position: absolute;
+  transform: translate(-50%, calc(-100% - 10px));
+  transition: opacity 120ms ease;
+  white-space: nowrap;
+  z-index: 2;
+}
+
+.overall-curve-panel .chart-point-tooltip.is-visible {
+  opacity: 1;
+}
+
+.overall-curve-panel .chart-point-tooltip.is-below {
+  transform: translate(-50%, 10px);
+}
+
+.overall-curve-panel .chart-point-tooltip small {
+  color: rgba(255, 255, 255, 0.72);
+  display: block;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
 
 .overall-curve-panel .chart-value-summary {
   align-items: center;
   display: flex;
   justify-content: flex-end;
+}
+
+@media (max-width: 720px) {
+  .overall-curve-panel .chart-range-control {
+    grid-template-columns: repeat(2, 1fr);
+    width: 100%;
+  }
 }
