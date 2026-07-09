@@ -142,11 +142,7 @@ function drawEmptyChart(context, width, height, message) {
 }
 
 function updateCanvasTooltip(canvasElement, timelineData, points = []) {
-  const lastPoint = timelineData[timelineData.length - 1];
-  canvasElement.title = lastPoint
-    ? `Latest: ${lastPoint.label || lastPoint.date} — ${formatGraphDisplayValue(lastPoint.value)}`
-    : '';
-
+  canvasElement.removeAttribute('title');
   canvasElement.__gainLossChartPoints = points;
   if (canvasElement.__gainLossTooltipBound) return;
 
